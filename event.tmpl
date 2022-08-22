@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<title></title>
+	</head>
+	<body>
+		<div>
+        On {{.event.Start}}<br>
+        {{ .event.Description }}
+        </div>
+        <br/>
+		<form action="/rsvp" method="post">
+			Who you?:<input type="text" name="Attendee"></input>
+            <br/>
+            How many you bringing?<input type="text" name="Guests" value="1"></input>
+			<br/>
+            <input type="hidden" name="EventID" value="{{.event.ID}}">
+			<input type="submit" value="rsvp">
+		</form>
+        <br>
+        Current Attendees:
+		<br/>
+		{{range .event.Rsvps}}
+		<div>{{ .Attendee }}:{{.Guests}}</div>
+		{{end}}
+        <!--TODO some sort of total-->
+	</body>
+</html>
