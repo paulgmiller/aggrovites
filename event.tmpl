@@ -10,6 +10,7 @@
         {{ .event.Description }}
         </div>
         <br/>
+        Bitch You Coming?<br/>
 		<form action="/rsvp" method="post">
 			Who you?:<input type="text" name="Attendee"></input>
             <br/>
@@ -19,7 +20,7 @@
 			<input type="submit" value="rsvp">
 		</form>
         <br>
-        Current Attendees:
+        Fabulous People {{.event.Total}}:
 		<br/>
 		{{range .event.Rsvps}}
 		<div>{{ .Attendee }}:{{.Guests}}</div>

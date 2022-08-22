@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -19,6 +20,7 @@ type Event struct {
 	Description string
 	Start       time.Time `time_format:"2006-01-02T15:04"` //no timezone ... :(
 	Rsvps       []Rsvp
+	Total       uint `gorm:"-"`
 }
 
 type Rsvp struct {
@@ -29,7 +31,13 @@ type Rsvp struct {
 }
 
 func main() {
-	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+
+	sqllitefile, found := os.LookupEnv("SQLLITE_FILE")
+	if !found {
+		sqllitefile = "test.db"
+	}
+	log.Printf("using sqllite db file %s", sqllitefile)
+	db, err := gorm.Open(sqlite.Open(sqllitefile), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
 	}
@@ -84,12 +92,15 @@ func main() {
 		}
 
 		log.Printf("Got event %v", event)
+		for _, r := range event.Rsvps {
+			event.Total += r.Guests
+		}
+
 		c.HTML(http.StatusOK, "event.tmpl", gin.H{"event": event})
 	})
 	router.POST("/rsvp", func(c *gin.Context) {
 		var rsvp Rsvp
 		if err := c.ShouldBind(&rsvp); err != nil {
-			log.Print("BIND ERROR %s", err.Error())
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
