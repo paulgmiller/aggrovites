@@ -53,6 +53,7 @@ func main() {
 		log.Fatalf("couldnt load template, %s", err)
 	}
 	router.SetHTMLTemplate(t)
+        router.Static("/assets", "./assets")
 	router.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "create.tmpl", gin.H{})
 	})
