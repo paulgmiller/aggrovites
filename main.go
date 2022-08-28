@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/sqlite"
@@ -14,21 +13,6 @@ import (
 )
 
 //https://gorm.io/docs/has_many.html
-
-type Event struct {
-	gorm.Model
-	Description string
-	Start       time.Time `time_format:"2006-01-02T15:04"` //no timezone ... :(
-	Rsvps       []Rsvp
-	Total       uint `gorm:"-"`
-}
-
-type Rsvp struct {
-	gorm.Model
-	Attendee string
-	Guests   uint `gorm:"default:1"`
-	EventID  uint
-}
 
 func main() {
 
@@ -53,7 +37,7 @@ func main() {
 		log.Fatalf("couldnt load template, %s", err)
 	}
 	router.SetHTMLTemplate(t)
-        router.Static("/assets", "./assets")
+	router.Static("/assets", "./assets")
 	router.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "create.tmpl", gin.H{})
 	})
@@ -94,7 +78,9 @@ func main() {
 
 		log.Printf("Got event %v", event)
 		for _, r := range event.Rsvps {
-			event.Total += r.Guests
+			if !r.Declined {
+				event.Total += r.Guests
+			}
 		}
 
 		c.HTML(http.StatusOK, "event.tmpl", gin.H{"event": event})
@@ -112,6 +98,21 @@ func main() {
 		}
 
 		c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d", rsvp.EventID))
+	})
+	router.POST("/reject", func(c *gin.Context) {
+		var rsvp Rsvp
+		if err := c.ShouldBind(&rsvp); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		rsvp.Declined = true
+		log.Printf("Got rejection %v", rsvp)
+		//TOOD make sure it point at a valid event?
+		if err := db.Create(&rsvp).Error; err != nil {
+			errorPage(err, c)
+		}
+
+		c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d?sadness", rsvp.EventID))
 	})
 	log.Print(router.Run(":9000").Error())
 }

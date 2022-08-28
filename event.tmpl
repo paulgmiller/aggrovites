@@ -19,7 +19,8 @@
             How many you bringing?<input type="text" name="Guests" value="1"></input>
 			<br/>
             <input type="hidden" name="EventID" value="{{.event.ID}}">
-			<input type="submit" value="rsvp">
+			<input type="submit" class="btn btn-success" value="fuck yeah">
+			<input type="submit" class="btn btn-danger" formaction="/reject" value="hell no">
 		</form>
         <br>
         Fabulous People {{.event.Total}}:

@@ -15,4 +15,5 @@ FROM gcr.io/distroless/base
 
 COPY --from=build /go/bin/app /
 COPY  *.tmpl /
+COPY  assets /assets
 CMD ["/app"]
