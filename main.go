@@ -77,11 +77,6 @@ func main() {
 		}
 
 		log.Printf("Got event %v", event)
-		for _, r := range event.Rsvps {
-			if !r.Declined {
-				event.Total += r.Guests
-			}
-		}
 
 		c.HTML(http.StatusOK, "event.tmpl", gin.H{"event": event})
 	})

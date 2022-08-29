@@ -1,5 +1,4 @@
 ## TODOs
-* Declines ui
-* list
+* hide empties
 * location/maps
 * ics
