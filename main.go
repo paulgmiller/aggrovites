@@ -8,7 +8,9 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/microsoft/gocosmos"
 	"gorm.io/driver/sqlite"
+	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
 )
 
@@ -16,12 +18,29 @@ import (
 
 func main() {
 
-	sqllitefile, found := os.LookupEnv("SQLLITE_FILE")
-	if !found {
-		sqllitefile = "test.db"
+	/* Coulnt' get this to work would have to write a gorm driver or move away from gorm.
+	driver := "gocosmos"
+	dsn := "AccountEndpoint=https://vitesdb.documents.azure.com:443/;AccountKey=<key>;DefaultDb=vites"
+	cosmos, err := sql.Open(driver, dsn)
+	if err != nil {
+		panic(err)
 	}
-	log.Printf("using sqllite db file %s", sqllitefile)
-	db, err := gorm.Open(sqlite.Open(sqllitefile), &gorm.Config{})
+	defer cosmos.Close()
+	*/
+	var data gorm.Dialector
+	if mssql_dsn, found := os.LookupEnv("MSSQL_DSN"); found {
+		log.Printf("using mssql %s", mssql_dsn)
+		data = sqlserver.Open(mssql_dsn)
+	} else {
+		sqllitefile, found := os.LookupEnv("SQLLITE_FILE")
+		if !found {
+			sqllitefile = "test.db"
+		}
+		log.Printf("using sqllite db file %s", sqllitefile)
+		data = sqlite.Open(sqllitefile)
+	}
+
+	db, err := gorm.Open(data, &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
 	}
@@ -39,6 +58,7 @@ func main() {
 	router.SetHTMLTemplate(t)
 	router.Static("/assets", "./assets")
 	router.GET("/", func(c *gin.Context) {
+
 		c.HTML(http.StatusOK, "create.tmpl", gin.H{})
 	})
 	router.POST("/event", func(c *gin.Context) {
