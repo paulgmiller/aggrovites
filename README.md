@@ -1,5 +1,4 @@
 ## TODOs
-* list of stuff to bring?
 * location/maps
 * ics
 * nicevites
