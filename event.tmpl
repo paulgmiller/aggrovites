@@ -23,12 +23,19 @@
 			<input type="submit" class="btn btn-danger" formaction="/reject" value="hell no">
 		</form>
         <br>
-        Fabulous People {{.event.Total}}:
-		<br/>
+        <em>Fabulous People ({{.event.Total}}):</em><br/>
+		
 		{{range .event.Rsvps}}
-		<div>{{ .Attendee }}:{{.Guests}}</div>
+			{{if not .Declined }}
+				<div>{{ .Attendee }}: {{.Guests}}</div>
+			{{end}}
 		{{end}}
-        <!--TODO some sort of total-->
+		<em>Losers:</em><br/>
+		{{range .event.Rsvps}}
+			{{if .Declined }}
+				<div>{{ .Attendee }}</div>
+			{{end}}
+		{{end}}
 		<script src="/assets/bootstrap.bundle.min.js"></script>
 	</body>
 </html>
