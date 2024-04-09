@@ -1,14 +1,19 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/gin-gonic/gin"
 	_ "github.com/microsoft/gocosmos"
+	"github.com/samber/lo"
 	"gorm.io/driver/sqlite"
 	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
@@ -45,6 +50,13 @@ func main() {
 		panic("failed to connect database")
 	}
 
+	client, err := azcosmos.NewClientFromConnectionString(os.Getenv("COSMOS_CONNECTION_STRING"), &azcosmos.ClientOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	vites := lo.Must(client.NewContainer("letsmeeup", "vites"))
+
 	// Migrate the schema
 	db.AutoMigrate(&Event{})
 	db.AutoMigrate(&Rsvp{})
@@ -68,6 +80,19 @@ func main() {
 			return
 		}
 		log.Printf("Storing event %v", event)
+
+		bin64 rand.Int63()
+
+		partitionKey := azcosmos.NewPartitionKeyString("gear-surf-surfboards")
+
+		context := context.TODO()
+
+		bytes, err := json.Marshal(item)
+		if err != nil {
+			return err
+		}
+
+		vites.Upsert()
 		if err := db.Create(&event).Error; err != nil {
 			errorPage(err, c)
 			return
