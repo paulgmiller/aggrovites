@@ -21,8 +21,9 @@ type Rsvp struct {
 	EventID  uint
 }
 
+// this puts this in  ISO 8601  so javascript can parse it
 func (e Event) PrettyStart() string {
-	return e.Start.Format(time.RFC850)
+	return e.Start.Format(time.RFC3339)
 }
 
 func (e Event) Total() uint {
