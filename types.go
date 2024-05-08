@@ -9,7 +9,7 @@ import (
 type Event struct {
 	gorm.Model
 	Description string
-	Start       time.Time `time_format:"2006-01-02T15:04"` //no timezone from datetime-local picker (could use java)
+	Start       time.Time `time_format:"2006-01-02T15:04"` //no timezone from datetime-local picker.
 	TimeZone    string
 	Rsvps       []Rsvp
 }
@@ -26,7 +26,7 @@ type Rsvp struct {
 func (e Event) PrettyStart() string {
 	tz, err := time.LoadLocation(e.TimeZone)
 	if e.TimeZone == "" || err != nil {
-		tz = time.Local
+		tz, _ = time.LoadLocation("America/Los_Angeles")
 	}
 
 	zoned := time.Date(e.Start.Year(), e.Start.Month(), e.Start.Day(), e.Start.Hour(), e.Start.Minute(), e.Start.Second(), e.Start.Nanosecond(), tz)
