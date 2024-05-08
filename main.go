@@ -67,6 +67,12 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+
+		if err := event.Validate(); err != nil {
+			errorPage(err, c)
+			return
+		}
+
 		log.Printf("Storing event %v", event)
 		if err := db.Create(&event).Error; err != nil {
 			errorPage(err, c)

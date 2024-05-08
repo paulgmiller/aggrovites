@@ -18,7 +18,7 @@
         .form-label {
             margin-bottom: 5px;
         }
-    </style>
+    </style>	
 </head>
 <body>
     <div class="container">
@@ -30,10 +30,15 @@
             <div class="form-group">
                 <label for="Start" class="form-label">When:</label>
                 <input type="datetime-local" id="Start" name="Start" class="form-control">
+				<input type="hidden" id="TimeZone" name="TimeZone" >
             </div>
             <input type="submit" class="btn btn-success" value="Let's Fucking GO!">
         </form>
     </div>
     <script src="/assets/bootstrap.bundle.min.js"></script>
+	<script>
+		const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		document.getElementById('TimeZone').value = tz;
+	</script>
 </body>
 </html>
