@@ -48,7 +48,7 @@
 </head>
 <body>
     <div class="container">
-        <h3>On <script>document.write(new Date("{{.event.PrettyStart}}").toLocaleDateString('en-US', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'}));</script></h3>
+        <h3>On <script>document.write(new Date("{{.event.PrettyStart}}").toLocaleDateString('en-US', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit'}));</script></h3>
         <p>{{.event.Description}}</p>
         
         <h3>Bitch You Coming?</h3>
