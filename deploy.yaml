@@ -27,7 +27,7 @@ spec:
             secretKeyRef:
               key: MSSQL_DSN
               name: aggrovites
-        image: paulgmiller/aggrovites:c58b79e
+        image: paulgmiller/aggrovites:ecd9699
         imagePullPolicy: Always
         name: letsmeetup
         resources:

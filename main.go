@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"html/template"
+	//"html/template"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/microsoft/gocosmos"
@@ -15,6 +16,19 @@ import (
 )
 
 //https://gorm.io/docs/has_many.html
+
+func isNice(c *gin.Context) bool {
+	//log.Printf("host header %S", c.Request.Header.Get("HOST"))
+	if strings.HasPrefix(strings.ToLower(c.Request.Header.Get("HOST")), "nice") {
+		log.Printf("host header %s", c.Request.Header.Get("HOST"))
+		return true
+	}
+	//log.Printf("host query arg %s", c.Request.URL.Query().Get("host"))
+	if strings.HasPrefix(strings.ToLower(c.Request.URL.Query().Get("host")), "nice") {
+		return true
+	}
+	return false
+}
 
 func main() {
 
@@ -50,16 +64,17 @@ func main() {
 	db.AutoMigrate(&Rsvp{})
 
 	router := gin.Default()
-	//https://gin-gonic.com/docs/examples/bind-single-binary-with-template/
-	t, err := template.ParseGlob("*.tmpl")
-	if err != nil {
-		log.Fatalf("couldnt load template, %s", err)
-	}
-	router.SetHTMLTemplate(t)
+	//https://gin-gonic.com/docs/examples/html-rendering/
+	//subdirectories did not seem to work here
+	router.LoadHTMLGlob("templates/*")
+
 	router.Static("/assets", "./assets")
 	router.GET("/", func(c *gin.Context) {
-
-		c.HTML(http.StatusOK, "create.tmpl", gin.H{})
+		template := "aggro_create.tmpl"
+		if isNice(c) {
+			template = "nice_create.tmpl"
+		}
+		c.HTML(http.StatusOK, template, gin.H{})
 	})
 	router.POST("/event", func(c *gin.Context) {
 		var event Event
@@ -104,7 +119,12 @@ func main() {
 
 		log.Printf("Got event %v", event)
 
-		c.HTML(http.StatusOK, "event.tmpl", gin.H{"event": event})
+		template := "aggro_event.tmpl"
+		if isNice(c) {
+			template = "nice_event.tmpl"
+		}
+
+		c.HTML(http.StatusOK, template, gin.H{"event": event})
 	})
 	router.POST("/rsvp", func(c *gin.Context) {
 		var rsvp Rsvp

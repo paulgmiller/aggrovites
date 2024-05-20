@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="/assets/bootstrap.min.css" rel="stylesheet">
+    <title>Make an event!</title>
+    <style>
+        .container {
+         	margin-top: 20px;
+            max-width: 600px; /* Sets a maximum width for the container */
+            margin-left: auto; /* Centers the container */
+            margin-right: auto; /* Centers the container */
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-label {
+            margin-bottom: 5px;
+        }
+    </style>	
+</head>
+<body>
+    <div class="container">
+        <h3>How can I help</h2>
+        <form action="/event" method="post">
+            <div class="form-group">
+                <textarea id="Description" name="Description" rows="6" class="form-control"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="Start" class="form-label">When:</label>
+                <input type="datetime-local" id="Start" name="Start" class="form-control">
+				<input type="hidden" id="TimeZone" name="TimeZone" >
+            </div>
+            <input type="submit" class="btn btn-success" value="Lets make some magic!">
+        </form>
+    </div>
+    <script src="/assets/bootstrap.bundle.min.js"></script>
+	<script>
+		const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		document.getElementById('TimeZone').value = tz;
+	</script>
+</body>
+</html>
