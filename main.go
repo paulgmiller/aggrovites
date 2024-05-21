@@ -18,8 +18,7 @@ import (
 //https://gorm.io/docs/has_many.html
 
 func isNice(c *gin.Context) bool {
-	log.Printf("header %+v", c.Request.Header)
-	if strings.HasPrefix(strings.ToLower(c.Request.Header.Get("Host")), "nice") {
+	if strings.HasPrefix(strings.ToLower(c.Request.Host), "nice") {
 		return true
 	}
 	//log.Printf("host query arg %s", c.Request.URL.Query().Get("host"))
