@@ -18,7 +18,7 @@ import (
 //https://gorm.io/docs/has_many.html
 
 func isNice(c *gin.Context) bool {
-	log.Printf("host header %S", c.Request.Header.Get("Host"))
+	log.Printf("header %+v", c.Request.Header)
 	if strings.HasPrefix(strings.ToLower(c.Request.Header.Get("Host")), "nice") {
 		return true
 	}
@@ -68,6 +68,17 @@ func main() {
 	router.LoadHTMLGlob("templates/*")
 
 	router.Static("/assets", "./assets")
+	router.GET("/ready", func(c *gin.Context) {
+		actualdb, err := db.DB()
+		if err != nil {
+			errorPage(err, c)
+		}
+		if err := actualdb.Ping(); err != nil {
+			errorPage(err, c)
+		}
+		c.String(200, "READY")
+	})
+
 	router.GET("/", func(c *gin.Context) {
 		template := "aggro_create.tmpl"
 		if isNice(c) {
