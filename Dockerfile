@@ -1,4 +1,4 @@
-FROM golang:1.18 as build
+FROM golang:1.22 as build
 
 WORKDIR /go/src/app
 COPY go.mod go.sum ./
@@ -14,6 +14,6 @@ RUN go build -o /go/bin/app
 FROM gcr.io/distroless/base
 
 COPY --from=build /go/bin/app /
-COPY *.tmpl /
+COPY templates/*.tmpl /templates/
 COPY assets/ /assets/
 CMD ["/app"]

@@ -22,14 +22,27 @@ spec:
     spec:
       containers:
       - env:
+        - name: GIN_MODE
+          value: release
         - name: MSSQL_DSN
           valueFrom:
             secretKeyRef:
               key: MSSQL_DSN
               name: aggrovites
-        image: paulgmiller/aggrovites:ecd9699
+        image: paulgmiller/aggrovites:3d5a749
         imagePullPolicy: Always
-        name: letsmeetup
+        name: aggrovites
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          readOnlyRootFilesystem: true
+        ports:
+          - name: api
+            containerPort: 9000
+        readinessProbe: 
+          httpGet:
+            path: /ready
+            port: 9000
         resources:
           limits:
             cpu: 100m
