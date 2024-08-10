@@ -28,7 +28,7 @@ spec:
             secretKeyRef:
               key: MSSQL_DSN
               name: aggrovites
-        image: paulgmiller/aggrovites:3d5a749
+        image: paulgmiller/aggrovites:0539a08
         imagePullPolicy: Always
         name: aggrovites
         securityContext:
