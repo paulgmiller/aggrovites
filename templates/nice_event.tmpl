@@ -86,6 +86,8 @@
                 <input type="submit" class="btn btn-danger" formaction="/reject" value="Sadly Not">
             </div>
         </form>
+
+        <p>A polite reminder <a href="{{.event.GoogleCalendarLink}}">Google</a> <a href="{{.event.OutlookCalendarLink}}">Outlook</a></p>
         
         <p class="list-header">{{.event.Total}} Lucky to have:</p>
         <ul class="list-group list-group-flush">

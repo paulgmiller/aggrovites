@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	//"html/template"
 	"log"
 	"net/http"
@@ -14,6 +15,10 @@ import (
 	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
 )
+
+type server struct {
+	db *gorm.DB
+}
 
 //https://gorm.io/docs/has_many.html
 
@@ -60,6 +65,7 @@ func main() {
 	// Migrate the schema
 	db.AutoMigrate(&Event{})
 	db.AutoMigrate(&Rsvp{})
+	s := server{db}
 
 	router := gin.Default()
 	//https://gin-gonic.com/docs/examples/html-rendering/
@@ -85,86 +91,96 @@ func main() {
 		}
 		c.HTML(http.StatusOK, template, gin.H{})
 	})
-	router.POST("/event", func(c *gin.Context) {
-		var event Event
-		if err := c.ShouldBind(&event); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
+	router.POST("/event", s.postEvent)
+	router.GET("/event/:id", s.getEvent)
 
-		if err := event.Validate(); err != nil {
-			errorPage(err, c)
-			return
-		}
+	router.POST("/rsvp", s.rsvp)
+	router.POST("/reject", s.reject)
 
-		log.Printf("Storing event %v", event)
-		if err := db.Create(&event).Error; err != nil {
-			errorPage(err, c)
-			return
-		}
-
-		c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d", event.ID))
-	})
-	router.GET("/event/:id", func(c *gin.Context) {
-		var event Event
-		var id struct {
-			Id uint `uri:"id" binding:"required"`
-		}
-		if err := c.ShouldBindUri(&id); err != nil {
-			errorPage(err, c)
-			return
-		}
-
-		result := db.Model(&Event{}).Preload("Rsvps").Find(&event, id.Id)
-		log.Printf("result: %v", result)
-		if result.Error != nil {
-			errorPage(result.Error, c)
-			return
-		}
-		if result.RowsAffected == 0 {
-			c.JSON(404, gin.H{"msg": "couldn't find your event"})
-			return
-		}
-
-		log.Printf("Got event %v", event)
-
-		template := "aggro_event.tmpl"
-		if isNice(c) {
-			template = "nice_event.tmpl"
-		}
-
-		c.HTML(http.StatusOK, template, gin.H{"event": event})
-	})
-	router.POST("/rsvp", func(c *gin.Context) {
-		var rsvp Rsvp
-		if err := c.ShouldBind(&rsvp); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		log.Printf("Got rsvp %v", rsvp)
-		//TOOD make sure it point at a valid event?
-		if err := db.Create(&rsvp).Error; err != nil {
-			errorPage(err, c)
-		}
-
-		c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d", rsvp.EventID))
-	})
-	router.POST("/reject", func(c *gin.Context) {
-		var rsvp Rsvp
-		if err := c.ShouldBind(&rsvp); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-		rsvp.Declined = true
-		log.Printf("Got rejection %v", rsvp)
-		//TOOD make sure it point at a valid event?
-		if err := db.Create(&rsvp).Error; err != nil {
-			errorPage(err, c)
-		}
-
-		c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d?sadness", rsvp.EventID))
-	})
 	log.Print(router.Run(":9000").Error())
+}
+
+func (s *server) postEvent(c *gin.Context) {
+	var event Event
+	if err := c.ShouldBind(&event); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := event.Validate(); err != nil {
+		errorPage(err, c)
+		return
+	}
+
+	log.Printf("Storing event %v", event)
+	if err := s.db.Create(&event).Error; err != nil {
+		errorPage(err, c)
+		return
+	}
+
+	c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d", event.ID))
+}
+
+func (s *server) getEvent(c *gin.Context) {
+	var event Event
+	var id struct {
+		Id uint `uri:"id" binding:"required"`
+	}
+	if err := c.ShouldBindUri(&id); err != nil {
+		errorPage(err, c)
+		return
+	}
+
+	result := s.db.Model(&Event{}).Preload("Rsvps").Find(&event, id.Id)
+	log.Printf("result: %v", result)
+	if result.Error != nil {
+		errorPage(result.Error, c)
+		return
+	}
+	if result.RowsAffected == 0 {
+		c.JSON(404, gin.H{"msg": "couldn't find your event"})
+		return
+	}
+
+	log.Printf("Got event %v", event)
+
+	template := "aggro_event.tmpl"
+	if isNice(c) {
+		template = "nice_event.tmpl"
+	}
+
+	c.HTML(http.StatusOK, template, gin.H{"event": event})
+}
+
+func (s *server) rsvp(c *gin.Context) {
+	var rsvp Rsvp
+	if err := c.ShouldBind(&rsvp); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	log.Printf("Got rsvp %v", rsvp)
+	//TOOD make sure it point at a valid event?
+	if err := s.db.Create(&rsvp).Error; err != nil {
+		errorPage(err, c)
+	}
+
+	c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d", rsvp.EventID))
+}
+
+func (s *server) reject(c *gin.Context) {
+	var rsvp Rsvp
+	if err := c.ShouldBind(&rsvp); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	rsvp.Declined = true
+	log.Printf("Got rejection %v", rsvp)
+	//TOOD make sure it point at a valid event?
+	if err := s.db.Create(&rsvp).Error; err != nil {
+		errorPage(err, c)
+	}
+
+	c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d?sadness", rsvp.EventID))
 }
 
 func errorPage(err error, c *gin.Context) {

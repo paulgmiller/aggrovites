@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"net/url"
 	"time"
 
 	"gorm.io/gorm"
@@ -66,4 +68,34 @@ func (e Event) Winners() []Rsvp {
 		}
 	}
 	return winners
+}
+
+// Function to create a Google Calendar link
+func (e Event) GoogleCalendarLink() string {
+	baseURL := "https://www.google.com/calendar/render?action=TEMPLATE"
+	end := e.Start.Add(time.Hour)
+	params := url.Values{}
+	//params.Add("text", "aggrovite")
+	params.Add("dates", fmt.Sprintf("%s/%s", e.Start.Format("20060102T150405Z"), end.Format("20060102T150405Z")))
+
+	params.Add("details", e.Description)
+	//params.Add("location", event.Location)
+
+	return baseURL + "&" + params.Encode()
+}
+
+// Function to create an Outlook Calendar link
+func (e Event) OutlookCalendarLink() string {
+	baseURL := "https://outlook.live.com/calendar/0/deeplink/compose"
+	end := e.Start.Add(time.Hour)
+	params := url.Values{}
+	params.Add("path", "/calendar/action/compose")
+	params.Add("rru", "addevent")
+	params.Add("startdt", e.Start.Format("2006-01-02T15:04:05"))
+	params.Add("enddt", end.Format("2006-01-02T15:04:05"))
+	//params.Add("subject", "aggrovite")
+	params.Add("body", e.Description)
+	//params.Add("location", event.Location)
+
+	return baseURL + "?" + params.Encode()
 }
