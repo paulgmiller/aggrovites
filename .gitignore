@@ -19,3 +19,8 @@
 
 # Go workspace file
 go.work
+
+test.db
+
+# stupid Macs
+DS_Store

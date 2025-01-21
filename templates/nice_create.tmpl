@@ -38,6 +38,19 @@
                 <label for="Start" class="form-label">When:</label>
                 <input type="datetime-local" id="Start" name="Start" class="form-control">
 				<input type="hidden" id="TimeZone" name="TimeZone" >
+                <script type="text/javascript">
+                    function toLocalISOString(date) {
+                        const localDate = new Date(date - date.getTimezoneOffset() * 60000); //offset in milliseconds. Credit https://stackoverflow.com/questions/10830357/javascript-toisostring-ignores-timezone-offset
+
+                        // Round up to next hour, removing minutes, seconds, and milliseconds
+                        localDate.setMinutes(0, 0, 0);
+                        localDate.setHours(localDate.getHours() + 1);
+                        return localDate.toISOString().slice(0, -1);
+                    }
+                    window.addEventListener("load", () => {
+                        document.getElementById("Start").value = toLocalISOString(new Date());
+                    });
+                </script>
             </div>
             <input type="submit" class="btn btn-success" value="Lets make some magic!">
         </form>
