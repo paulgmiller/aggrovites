@@ -35,7 +35,7 @@ func isNice(c *gin.Context) bool {
 
 func main() {
 
-	/* Coulnt' get this to work would have to write a gorm driver or move away from gorm.
+	/* Couldn't get this to work would have to write a gorm driver or move away from gorm.
 	driver := "gocosmos"
 	dsn := "AccountEndpoint=https://vitesdb.documents.azure.com:443/;AccountKey=<key>;DefaultDb=vites"
 	cosmos, err := sql.Open(driver, dsn)
@@ -85,11 +85,23 @@ func main() {
 	})
 
 	router.GET("/", func(c *gin.Context) {
-		template := "aggro_create.tmpl"
-		if isNice(c) {
-			template = "nice_create.tmpl"
+		template := "create.tmpl"
+		htmlObj := gin.H{
+			"title":              "Make an event!",
+			"headerText":         "What's going down?",
+			"startTimeFormLabel": "When?",
+			"submitLabel":        "Let's fucking GO!",
 		}
-		c.HTML(http.StatusOK, template, gin.H{})
+
+		if isNice(c) {
+			htmlObj = gin.H{
+				"title":              "Make an event!",
+				"headerText":         "How can I help?",
+				"startTimeFormLabel": "When?",
+				"submitLabel":        "Let's make some magic!",
+			}
+		}
+		c.HTML(http.StatusOK, template, htmlObj)
 	})
 	router.POST("/event", s.postEvent)
 	router.GET("/event/:id", s.getEvent)
@@ -144,12 +156,43 @@ func (s *server) getEvent(c *gin.Context) {
 
 	log.Printf("Got event %v", event)
 
-	template := "aggro_event.tmpl"
+	template := "event.tmpl"
+	htmlObj := gin.H{
+		"event": event,
+
+		"ogTitle":                "Aggrovite",
+		"ogUrl":                  fmt.Sprintf("https://aggrovites.northbriton.net/event/%d", event.ID),
+		"ogImageUrl":             "https://aggrovites.northbriton.net/assets/aggrovites.jpg",
+		"title":                  "Holler Back",
+		"rsvpHeader":             "Bitch you coming?",
+		"rsvpForWhom":            "Who you?",
+		"rsvpAccept":             "fuck yeah",
+		"rsvpDecline":            "hell no",
+		"rsvpGuestCountHeader":   "How many you bringing?",
+		"exportEventHeader":      "Write it down knuckle head",
+		"rsvpAcceptedListHeader": "Fabulous People:",
+		"rsvpDeclinedListHeader": "Losers:",
+	}
 	if isNice(c) {
-		template = "nice_event.tmpl"
+		htmlObj = gin.H{
+			"event": event,
+
+			"ogTitle":                "Nicevite",
+			"ogUrl":                  fmt.Sprintf("https://nicevites.northbriton.net/event/%d", event.ID),
+			"ogImageUrl":             "https://nicevites.northbriton.net/assets/nicevites.jpg",
+			"title":                  "Répondez s'il vous plaît",
+			"rsvpHeader":             "Be delighted to have you",
+			"rsvpAccept":             "My pleasure",
+			"rsvpDecline":            "Sadly not",
+			"rsvpForWhom":            "How would you like to be addressed?",
+			"rsvpGuestCountHeader":   "How many will bless us?",
+			"exportEventHeader":      "A polite reminder",
+			"rsvpAcceptedListHeader": "Lucky to have:",
+			"rsvpDeclinedListHeader": "Regretfully Absent:",
+		}
 	}
 
-	c.HTML(http.StatusOK, template, gin.H{"event": event})
+	c.HTML(http.StatusOK, template, htmlObj)
 }
 
 func (s *server) rsvp(c *gin.Context) {
