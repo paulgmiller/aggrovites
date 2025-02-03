@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="/assets/bootstrap.min.css" rel="stylesheet">
-    <title>Make an event!</title>
+    <title>{{ .title }}</title>
     <style>
         .container {
          	margin-top: 20px;
@@ -20,22 +20,23 @@
         }
     </style>
     <script type="text/javascript">
-    (function(c,l,a,r,i,t,y){
-        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-    })(window, document, "clarity", "script", "nl9q05t0mc");
+        (function(c,l,a,r,i,t,y){
+            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        })(window, document, "clarity", "script", "nl9q05t0mc");
     </script>	
 </head>
 <body>
     <div class="container">
-        <h3>How can I help</h2>
+        <h3>{{ .headerText }}</h2>
         <form action="/event" method="post">
             <div class="form-group">
                 <textarea id="Description" name="Description" rows="6" class="form-control"></textarea>
             </div>
             <div class="form-group">
-                <label for="Start" class="form-label">When:</label>
+                <label for="Start" class="form-label">{{ .startTimeFormLabel }}</label>
+                <!-- consider https://github.com/williamtroup/Calendar.js/ -->
                 <input type="datetime-local" id="Start" name="Start" class="form-control">
 				<input type="hidden" id="TimeZone" name="TimeZone" >
                 <script type="text/javascript">
@@ -52,7 +53,7 @@
                     });
                 </script>
             </div>
-            <input type="submit" class="btn btn-success" value="Lets make some magic!">
+            <input type="submit" class="btn btn-success" value="{{ .submitLabel }}">
         </form>
     </div>
     <script src="/assets/bootstrap.bundle.min.js"></script>

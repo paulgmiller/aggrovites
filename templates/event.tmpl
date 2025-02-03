@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- WhatsApp/open graph link preview -->
+    <meta property="og:title" content="{{ .ogTitle }}"/>
+    <meta property="og:description" content="{{.event.Description}}"/>
+    <meta property="og:url" content="{{ .ogUrl }}"/>
+    <meta property="og:image"content="{{ .ogImageUrl }}"/> 
+
+    <link href="/assets/bootstrap.min.css" rel="stylesheet">
+    <link href="/assets/nice-forms.css" rel="stylesheet">
+    <title>{{ .title }}</title>
+    <style>
+        .form-label {
+            margin-right: 10px;
+            white-space: nowrap; /* Prevents label from wrapping */
+        }
+        .form-control, .select-dropdown {
+            flex-grow: 1; /* Allows input fields to fill the available space */
+        }
+        .list-header {
+            font-weight: bold;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        .btn {
+            width: 100%;
+        }
+        .section-group {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 20px;
+            max-width: unset;
+        }
+        .section-primary {
+            flex: 1 1 100%;
+            max-width: 400px;
+        }
+        .section-secondary {
+            flex: 1 1 100%;
+            order: 1;
+            max-width: 400px;
+            border-top: 1px solid #aaa;
+        }
+        @media (min-width: 800px) {
+            .section-primary {
+                flex 1:
+            }
+            .section-secondary {
+                flex: 1;
+                order: 2;
+                float: right;
+                margin-left: 20px;
+                padding-left: 20px;
+                border-top: unset;
+                border-left: 1px solid #aaa;
+            }
+        }
+
+        .select-dropdown {
+            width: 100%; /* Ensures the select dropdown fills the form group */
+            display: block; /* Fixes alignment issues with Bootstrap */
+            height: calc(2.25rem + 2px); /* Matches Bootstrap's height for form inputs */
+            padding: .375rem 1.75rem .375rem .75rem; /* Matches Bootstrap's padding for form inputs */
+            font-size: 1rem; /* Matches Bootstrap's font size for form inputs */
+            line-height: 1.5; /* Matches Bootstrap's line height for form inputs */
+            color: #495057; /* Default text color */
+            background-color: #fff; /* White background */
+            border: 1px solid #ced4da; /* Standard border */
+        }
+    </style>
+    <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "nl9q05t0mc");
+    </script>	
+</head>
+<body>
+    <div class="section-group">
+        <div class="section-primary">
+            <h1>{{.event.Description}}</h1>
+            <p><script>document.write(new Date("{{.event.PrettyStart}}").toLocaleDateString('en-US', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit'}));</script></p>
+            <form action="/rsvp" method="post" class="form">
+                <fieldset class="nice-form-group">
+                    <legend>{{ .rsvpHeader }}</legend>
+                    <div class="nice-form-group">
+                        <input type="radio" id="accept" name="rsvp" value="accept" checked="checked">
+                        <label for="accept">{{ .rsvpAccept }}</label>
+                    </div>
+                    <div class="nice-form-group">
+                        <input type="radio" id="decline" name="rsvp" value="decline">
+                        <label for="decline">{{ .rsvpDecline }}</label>
+                    </div>
+                </fieldset>
+                <div class="nice-form-group">
+                    <label for="name">{{ .rsvpForWhom }}</label>
+                    <input id="name" type="text" name="Attendee" class="form-control" required autocomplete="family-name">
+                </div>
+                <div class="nice-form-group">
+                    <label for="guestCount">{{ .rsvpGuestCountHeader }}</label>
+                    <select id="guestCount" name="Guests" class="select-dropdown" required>
+                        <option></option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <!-- Add more options as needed -->
+                    </select>
+                </div>
+                <input type="hidden" name="EventID" value="{{.event.ID}}">
+                <div class="nice-form-group">
+                    <input id="submit" type="submit" class="btn btn-success" value="{{ .rsvpAccept }}" formAction="/rsvp">
+                </div>
+                <script type="text/javascript">
+                    window.addEventListener("load", () => {
+                        function updateForm(acceptChecked) {
+                            const name = document.getElementById('name');
+                            const submit = document.getElementById('submit')
+                            const guestCount = document.getElementById('guestCount')
+                            const guestCountLabel = document.querySelector('label[for="guestCount"]')
+                            
+                            if (acceptChecked) {
+                                guestCount.removeAttribute('disabled')
+                                guestCount.setAttribute('required', '')
+                                guestCountLabel.style.textDecoration = ''
+
+                                submit.classList.remove('btn-danger')
+                                submit.classList.add('btn-success')
+                                submit.value = "{{ .rsvpAccept }}"
+                                submit.formAction = '/rsvp'
+                            } else {
+                                // guest count not required to decline
+                                guestCount.setAttribute('disabled', 'disabled')
+                                guestCount.removeAttribute('required')
+                                guestCount.value = ''
+                                guestCountLabel.style.textDecoration = 'line-through'
+                                
+                                submit.classList.add('btn-danger')
+                                submit.classList.remove('btn-success')
+                                submit.value = "{{ .rsvpDecline }}"
+                                submit.formAction = '/reject'
+                            }
+                        }
+
+                        updateForm(document.getElementById('accept').checked)
+
+                        document.getElementById('accept').addEventListener('change', () => {
+                            // for radio buttons, 'change' only fires when it becomes
+                            // checked (not when it becomes unchecked)
+                            updateForm(true)
+                        });
+
+                        document.getElementById('decline').addEventListener('change', () => {
+                            // for radio buttons, 'change' only fires when it becomes
+                            // checked (not when it becomes unchecked)
+                            updateForm(false)
+                        });
+                    });
+                </script>
+            </form>
+            <br>
+            <p>📌 {{ .exportEventHeader }}
+                <a href="{{.event.GoogleCalendarLink}}">Google</a>
+                <a href="{{.event.OutlookCalendarLink}}">Outlook</a>
+            </p>
+        </div>
+        <div class="section-secondary">
+            <p class="list-header">{{.event.Total}} {{ .rsvpAcceptedListHeader }}</p>
+            <ul class="list-group list-group-flush">
+                {{range .event.Winners}}
+                    <li class="list-group-item">{{.Attendee}} ({{.Guests}})</li>
+                {{end}}
+            </ul>
+
+            <p class="list-header">{{ .rsvpDeclinedListHeader }}</p>
+            <ul class="list-group list-group-flush">
+                {{range .event.Losers}}
+                    <li class="list-group-item">{{.Attendee}}</li>
+                {{end}}
+            </ul>
+        </div>
+    </div>
+    <script src="/assets/bootstrap.bundle.min.js"></script>
+</body>
+</html>
