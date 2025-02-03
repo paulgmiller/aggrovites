@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	_ "github.com/microsoft/gocosmos"
 	"gorm.io/driver/sqlite"
 	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
@@ -34,16 +33,6 @@ func isNice(c *gin.Context) bool {
 }
 
 func main() {
-
-	/* Couldn't get this to work would have to write a gorm driver or move away from gorm.
-	driver := "gocosmos"
-	dsn := "AccountEndpoint=https://vitesdb.documents.azure.com:443/;AccountKey=<key>;DefaultDb=vites"
-	cosmos, err := sql.Open(driver, dsn)
-	if err != nil {
-		panic(err)
-	}
-	defer cosmos.Close()
-	*/
 	var data gorm.Dialector
 	if mssql_dsn, found := os.LookupEnv("MSSQL_DSN"); found {
 		log.Printf("using mssql %s", mssql_dsn)
