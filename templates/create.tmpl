@@ -6,6 +6,15 @@
     <link href="/assets/bootstrap.min.css" rel="stylesheet">
     <title>{{ .title }}</title>
     <style>
+        @view-transition {
+            navigation: auto;
+        }
+        #Description {
+            view-transition-name: description;
+        }
+        #Start {
+            view-transition-name: when;
+        }
         .container {
          	margin-top: 20px;
             max-width: 600px; /* Sets a maximum width for the container */

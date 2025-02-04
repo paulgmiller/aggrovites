@@ -14,6 +14,15 @@
     <link href="/assets/nice-forms.css" rel="stylesheet">
     <title>{{ .title }}</title>
     <style>
+        @view-transition {
+            navigation: auto;
+        }
+        #Description {
+            view-transition-name: description;
+        }
+        #When {
+            view-transition-name: when;
+        }
         .form-label {
             margin-right: 10px;
             white-space: nowrap; /* Prevents label from wrapping */
@@ -84,8 +93,8 @@
 <body>
     <div class="section-group">
         <div class="section-primary">
-            <h1>{{.event.Description}}</h1>
-            <p><script>document.write(new Date("{{.event.PrettyStart}}").toLocaleDateString('en-US', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit'}));</script></p>
+            <h1 id="Description">{{.event.Description}}</h1>
+            <p id="When"><script>document.write(new Date("{{.event.PrettyStart}}").toLocaleDateString('en-US', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit'}));</script></p>
             <form action="/rsvp" method="post" class="form">
                 <fieldset class="nice-form-group">
                     <legend>{{ .rsvpHeader }}</legend>
@@ -171,6 +180,14 @@
                 <a href="{{.event.GoogleCalendarLink}}">Google</a>
                 <a href="{{.event.OutlookCalendarLink}}">Outlook</a>
             </p>
+            <p>Experimental: calndr.link
+                <a href="https://calndr.link/d/event/?service=google&start={{ .event.Start }}&&title={{ .event.Description }}&timezone={{ .event.TimeZone }}" target="_blank">Add to Google</a>
+                <a href="https://calndr.link/d/event/?service=outlookcom&start={{ .event.Start }}&&title={{ .event.Description }}&timezone={{ .event.TimeZone }}" target="_blank">Add to Outlookcom</a>
+                <a href="https://calndr.link/d/event/?service=outlook&start={{ .event.Start }}&&title={{ .event.Description }}&timezone={{ .event.TimeZone }}" target="_blank">Add to Outlook (ics)</a>
+                <a href="https://calndr.link/d/event/?service=yahoo&start={{ .event.Start }}&&title={{ .event.Description }}&timezone={{ .event.TimeZone }}" target="_blank">Add to Yahoo</a>
+                <a href="https://calndr.link/d/event/?service=apple&start={{ .event.Start }}&&title={{ .event.Description }}&timezone={{ .event.TimeZone }}" target="_blank">Add to Apple (ics)</a>
+                <a href="https://calndr.link/d/event/?service=stream&start={{ .event.Start }}&&title={{ .event.Description }}&timezone={{ .event.TimeZone }}" target="_blank">Download ics</a>
+            <p>
         </div>
         <div class="section-secondary">
             <p class="list-header">{{.event.Total}} {{ .rsvpAcceptedListHeader }}</p>
