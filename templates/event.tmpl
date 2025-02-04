@@ -180,14 +180,6 @@
                 <a href="{{.event.GoogleCalendarLink}}">Google</a>
                 <a href="{{.event.OutlookCalendarLink}}">Outlook</a>
             </p>
-            <p>Experimental: calndr.link
-                <a href="https://calndr.link/d/event/?service=google&start={{ .event.Start }}&&title={{ .event.Description }}&timezone={{ .event.TimeZone }}" target="_blank">Add to Google</a>
-                <a href="https://calndr.link/d/event/?service=outlookcom&start={{ .event.Start }}&&title={{ .event.Description }}&timezone={{ .event.TimeZone }}" target="_blank">Add to Outlookcom</a>
-                <a href="https://calndr.link/d/event/?service=outlook&start={{ .event.Start }}&&title={{ .event.Description }}&timezone={{ .event.TimeZone }}" target="_blank">Add to Outlook (ics)</a>
-                <a href="https://calndr.link/d/event/?service=yahoo&start={{ .event.Start }}&&title={{ .event.Description }}&timezone={{ .event.TimeZone }}" target="_blank">Add to Yahoo</a>
-                <a href="https://calndr.link/d/event/?service=apple&start={{ .event.Start }}&&title={{ .event.Description }}&timezone={{ .event.TimeZone }}" target="_blank">Add to Apple (ics)</a>
-                <a href="https://calndr.link/d/event/?service=stream&start={{ .event.Start }}&&title={{ .event.Description }}&timezone={{ .event.TimeZone }}" target="_blank">Download ics</a>
-            <p>
         </div>
         <div class="section-secondary">
             <p class="list-header">{{.event.Total}} {{ .rsvpAcceptedListHeader }}</p>
