@@ -106,13 +106,16 @@
                     </select>
                 </div>
                 <input type="hidden" name="EventID" value="{{.event.ID}}">
+                <input type="hidden" name="Declined" value="false">
                 <div class="nice-form-group">
                     <!-- guestCount is rquired for accepts but not rejects -->
                     <input type="submit" class="btn btn-success" value="{{ .rsvpAccept }}" 
-                        onclick="document.getElementById('guestCount').required = true;" /> 
+                        onclick="document.getElementById('guestCount').required = true;
+                        document.getElementById('Declined').value = 'false';" /> 
                     <br/> <!-- replace this with some css dark magic -->
-                    <input type="submit" class="btn btn-danger" formaction="/reject" value="{{ .rsvpDecline }}" 
-                        onclick="document.getElementById('guestCount').removeAttribute('required');" />
+                    <input type="submit" class="btn btn-danger"  value="{{ .rsvpDecline }}" 
+                        onclick="document.getElementById('guestCount').removeAttribute('required');
+                        document.getElementById('Declined').value = 'true';" />
                 </div>
             </form>
             <br>

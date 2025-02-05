@@ -96,7 +96,6 @@ func main() {
 	router.GET("/event/:id", s.getEvent)
 
 	router.POST("/rsvp", s.rsvp)
-	router.POST("/reject", s.reject)
 
 	log.Print(router.Run(":9000").Error())
 }
@@ -146,6 +145,7 @@ func (s *server) getEvent(c *gin.Context) {
 	log.Printf("Got event %v", event)
 
 	template := "event.tmpl"
+	//should we validate this in some way to make sure we don't miss any fields?
 	htmlObj := gin.H{
 		"event": event,
 
@@ -191,28 +191,39 @@ func (s *server) rsvp(c *gin.Context) {
 		return
 	}
 	log.Printf("Got rsvp %v", rsvp)
+
+	var event Event
+	result := s.db.Model(&Event{}).Preload("Rsvps").Find(&event, rsvp.EventID)
+	if result.Error != nil {
+		errorPage(result.Error, c)
+		return
+	}
+	if result.RowsAffected == 0 {
+		c.JSON(404, gin.H{"msg": "couldn't find your event"})
+		return
+	}
+	for _, existing := range event.Rsvps {
+		if strings.EqualFold(existing.Attendee, rsvp.Attendee) {
+			log.Printf("Found existing rsvp %s updating count from ", rsvp.Attendee)
+			//a json page is probably not the best experience
+			errorPage(fmt.Errorf("already got an RSVP for %s", rsvp.Attendee), c)
+			/* Alternatively could let anyone update... or only update if they have a cookie of who rsvpd?
+			rsvp.ID = existing.ID
+			if err := s.db.Save(&rsvp).Error; err != nil {
+				errorPage(err, c)
+				return
+			}
+			c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d", rsvp.EventID))*/
+			return
+		}
+	}
 	//TOOD make sure it point at a valid event?
 	if err := s.db.Create(&rsvp).Error; err != nil {
 		errorPage(err, c)
+		return
 	}
 
 	c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d", rsvp.EventID))
-}
-
-func (s *server) reject(c *gin.Context) {
-	var rsvp Rsvp
-	if err := c.ShouldBind(&rsvp); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	rsvp.Declined = true
-	log.Printf("Got rejection %v", rsvp)
-	//TOOD make sure it point at a valid event?
-	if err := s.db.Create(&rsvp).Error; err != nil {
-		errorPage(err, c)
-	}
-
-	c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d?sadness", rsvp.EventID))
 }
 
 func errorPage(err error, c *gin.Context) {
