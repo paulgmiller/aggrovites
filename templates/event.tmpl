@@ -29,6 +29,15 @@
         .btn {
             width: 100%;
         }
+        /* override btn-success and btn-danger using template variables */
+        .btn-success {
+            background-color: {{ .btnSuccessColor }} !important;
+            border-color: {{ .btnSuccessColor }} !important;
+        }
+        .btn-danger {
+            background-color: {{ .btnDangerColor }} !important;
+            border-color: {{ .btnDangerColor }} !important;
+        }
         .section-group {
             display: flex;
             flex-wrap: wrap;
@@ -71,6 +80,10 @@
             color: #495057; /* Default text color */
             background-color: #fff; /* White background */
             border: 1px solid #ced4da; /* Standard border */
+        }
+        /* customizable heading font */
+        h1 {
+            font-family: {{ .headingFont }};
         }
     </style>
     <script type="text/javascript">

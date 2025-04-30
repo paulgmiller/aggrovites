@@ -161,6 +161,7 @@ func (s *server) getEvent(c *gin.Context) {
 		"exportEventHeader":      "Write it down knuckle head",
 		"rsvpAcceptedListHeader": "Fabulous People:",
 		"rsvpDeclinedListHeader": "Losers:",
+		"headingFont":            "Impact, Charcoal, sans-serif",
 	}
 	if isNice(c) {
 		htmlObj = gin.H{
@@ -178,6 +179,10 @@ func (s *server) getEvent(c *gin.Context) {
 			"exportEventHeader":      "A polite reminder",
 			"rsvpAcceptedListHeader": "Lucky to have:",
 			"rsvpDeclinedListHeader": "Regretfully Absent:",
+			// custom button colors
+			"btnSuccessColor": "#F4A261",
+			"btnDangerColor":  "#A26769",
+			"headingFont":     "'Crimson Text', serif",
 		}
 	}
 
