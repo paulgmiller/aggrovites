@@ -27,7 +27,7 @@ spec:
           valueFrom:
             secretKeyRef:
               key: MSSQL_DSN
-              name: aggrovites
+              name: aggrovites2
         image: paulgmiller/aggrovites:e448115
         imagePullPolicy: Always
         name: aggrovites
