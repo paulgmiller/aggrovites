@@ -84,7 +84,8 @@
 <body>
     <div class="section-group">
         <div class="section-primary">
-            <h1>{{.event.Description}}</h1>
+            <h1>{{.event.Title}}</h1>
+            {{if .event.Body}}<p>{{.event.Body}}</p>{{end}}
             <p><script>document.write(new Date("{{.event.PrettyStart}}").toLocaleDateString('en-US', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit'}));</script></p>
             <form action="/rsvp" method="post" class="form">
                 <h3>{{ .rsvpHeader }}</h3>

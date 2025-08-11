@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -98,4 +99,56 @@ func (e Event) OutlookCalendarLink() string {
 	//params.Add("location", event.Location)
 
 	return baseURL + "?" + params.Encode()
+}
+
+// Title returns the first sentence or first 10 words of the description for use as the H1 title
+func (e Event) Title() string {
+	if e.Description == "" {
+		return ""
+	}
+	
+	// Try to find the first sentence ending with . ! or ?
+	for i, char := range e.Description {
+		if char == '.' || char == '!' || char == '?' {
+			title := strings.TrimSpace(e.Description[:i+1])
+			words := strings.Fields(title)
+			// If the sentence is reasonable length (1-20 words), use it
+			if len(words) >= 1 && len(words) <= 20 {
+				return title
+			}
+		}
+	}
+	
+	// If no sentence ending found or sentence is too long, take first 10 words
+	words := strings.Fields(e.Description)
+	if len(words) == 0 {
+		return ""
+	}
+	
+	if len(words) <= 10 {
+		return e.Description
+	}
+	
+	return strings.Join(words[:10], " ")
+}
+
+// Body returns the remaining part of the description after the title
+func (e Event) Body() string {
+	if e.Description == "" {
+		return ""
+	}
+	
+	title := e.Title()
+	if title == e.Description {
+		return "" // The entire description is the title
+	}
+	
+	// Find where the title ends in the original description
+	titleEnd := strings.Index(e.Description, title)
+	if titleEnd == -1 {
+		return e.Description // Fallback
+	}
+	
+	remaining := strings.TrimSpace(e.Description[titleEnd+len(title):])
+	return remaining
 }
