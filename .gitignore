@@ -23,4 +23,6 @@ go.work
 test.db
 
 # stupid Macs
-DS_Storeaggrovites
+DS_Store
+
+aggrovites
