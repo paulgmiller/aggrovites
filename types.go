@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base32"
 	"fmt"
 	"net/url"
 	"strings"
@@ -14,15 +16,32 @@ type Event struct {
 	Description string
 	Start       time.Time `time_format:"2006-01-02T15:04"` //no timezone from datetime-local picker.
 	TimeZone    string
+	PublicID    string `gorm:"uniqueIndex"`
 	Rsvps       []Rsvp
 }
 
 type Rsvp struct {
 	gorm.Model
-	Attendee string
-	Guests   uint `gorm:"default:1"`
-	Declined bool
-	EventID  uint
+	Attendee      string
+	Guests        uint `gorm:"default:1"`
+	Declined      bool
+	EventID       uint
+	EventPublicID string `gorm:"index"`
+}
+
+func newPublicID() (string, error) {
+	var b [10]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b[:])), nil
+}
+
+func (e Event) RouteID() string {
+	if e.PublicID != "" {
+		return e.PublicID
+	}
+	return fmt.Sprint(e.ID)
 }
 
 // this puts this in  ISO 8601  so javascript can parse it
@@ -106,7 +125,7 @@ func (e Event) Title() string {
 	if e.Description == "" {
 		return ""
 	}
-	
+
 	// Try to find the first sentence ending with . ! or ?
 	for i, char := range e.Description {
 		if char == '.' || char == '!' || char == '?' {
@@ -118,17 +137,17 @@ func (e Event) Title() string {
 			}
 		}
 	}
-	
+
 	// If no sentence ending found or sentence is too long, take first 10 words
 	words := strings.Fields(e.Description)
 	if len(words) == 0 {
 		return ""
 	}
-	
+
 	if len(words) <= 10 {
 		return e.Description
 	}
-	
+
 	return strings.Join(words[:10], " ")
 }
 
@@ -137,18 +156,18 @@ func (e Event) Body() string {
 	if e.Description == "" {
 		return ""
 	}
-	
+
 	title := e.Title()
 	if title == e.Description {
 		return "" // The entire description is the title
 	}
-	
+
 	// Find where the title ends in the original description
 	titleEnd := strings.Index(e.Description, title)
 	if titleEnd == -1 {
 		return e.Description // Fallback
 	}
-	
+
 	remaining := strings.TrimSpace(e.Description[titleEnd+len(title):])
 	return remaining
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
 	//"html/template"
@@ -16,7 +17,7 @@ import (
 )
 
 type server struct {
-	db *gorm.DB
+	store Store
 }
 
 //https://gorm.io/docs/has_many.html
@@ -33,28 +34,12 @@ func isNice(c *gin.Context) bool {
 }
 
 func main() {
-	var data gorm.Dialector
-	if mssql_dsn, found := os.LookupEnv("MSSQL_DSN"); found {
-		log.Printf("using mssql %s", mssql_dsn)
-		data = sqlserver.Open(mssql_dsn)
-	} else {
-		sqllitefile, found := os.LookupEnv("SQLLITE_FILE")
-		if !found {
-			sqllitefile = "test.db"
-		}
-		log.Printf("using sqllite db file %s", sqllitefile)
-		data = sqlite.Open(sqllitefile)
-	}
-
-	db, err := gorm.Open(data, &gorm.Config{})
+	store, err := openStore()
 	if err != nil {
-		panic("failed to connect database")
+		panic(err)
 	}
 
-	// Migrate the schema
-	db.AutoMigrate(&Event{})
-	db.AutoMigrate(&Rsvp{})
-	s := server{db}
+	s := server{store: store}
 
 	router := gin.Default()
 	//https://gin-gonic.com/docs/examples/html-rendering/
@@ -63,12 +48,9 @@ func main() {
 
 	router.Static("/assets", "./assets")
 	router.GET("/ready", func(c *gin.Context) {
-		actualdb, err := db.DB()
-		if err != nil {
+		if err := store.Ready(); err != nil {
 			errorPage(err, c)
-		}
-		if err := actualdb.Ping(); err != nil {
-			errorPage(err, c)
+			return
 		}
 		c.String(200, "READY")
 	})
@@ -100,6 +82,39 @@ func main() {
 	log.Print(router.Run(":9000").Error())
 }
 
+func openStore() (Store, error) {
+	cosmos, usingCosmos, err := newCosmosStoreFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	if usingCosmos {
+		log.Print("using cosmos db")
+		return cosmos, nil
+	}
+
+	var data gorm.Dialector
+	if mssqlDsn, found := os.LookupEnv("MSSQL_DSN"); found {
+		log.Printf("using mssql %s", mssqlDsn)
+		data = sqlserver.Open(mssqlDsn)
+	} else {
+		sqlitefile, found := os.LookupEnv("SQLLITE_FILE")
+		if !found {
+			sqlitefile = "test.db"
+		}
+		log.Printf("using sqllite db file %s", sqlitefile)
+		data = sqlite.Open(sqlitefile)
+	}
+
+	db, err := gorm.Open(data, &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect database: %w", err)
+	}
+	if err := db.AutoMigrate(&Event{}, &Rsvp{}); err != nil {
+		return nil, err
+	}
+	return newGormStore(db), nil
+}
+
 func (s *server) postEvent(c *gin.Context) {
 	var event Event
 	if err := c.ShouldBind(&event); err != nil {
@@ -113,32 +128,30 @@ func (s *server) postEvent(c *gin.Context) {
 	}
 
 	log.Printf("Storing event %v", event)
-	if err := s.db.Create(&event).Error; err != nil {
+	if err := s.store.CreateEvent(&event); err != nil {
 		errorPage(err, c)
 		return
 	}
 
-	c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d", event.ID))
+	c.Redirect(http.StatusFound, fmt.Sprintf("/event/%s", event.RouteID()))
 }
 
 func (s *server) getEvent(c *gin.Context) {
-	var event Event
 	var id struct {
-		Id uint `uri:"id" binding:"required"`
+		ID string `uri:"id" binding:"required"`
 	}
 	if err := c.ShouldBindUri(&id); err != nil {
 		errorPage(err, c)
 		return
 	}
 
-	result := s.db.Model(&Event{}).Preload("Rsvps").Find(&event, id.Id)
-	log.Printf("result: %v", result)
-	if result.Error != nil {
-		errorPage(result.Error, c)
+	event, err := s.store.GetEvent(id.ID)
+	if errors.Is(err, errNotFound) {
+		c.JSON(404, gin.H{"msg": "couldn't find your event"})
 		return
 	}
-	if result.RowsAffected == 0 {
-		c.JSON(404, gin.H{"msg": "couldn't find your event"})
+	if err != nil {
+		errorPage(err, c)
 		return
 	}
 
@@ -150,7 +163,7 @@ func (s *server) getEvent(c *gin.Context) {
 		"event": event,
 
 		"ogTitle":                "Aggrovite",
-		"ogUrl":                  fmt.Sprintf("https://aggrovites.northbriton.net/event/%d", event.ID),
+		"ogUrl":                  fmt.Sprintf("https://aggrovites.northbriton.net/event/%s", event.RouteID()),
 		"ogImageUrl":             "https://aggrovites.northbriton.net/assets/aggrovites.jpg",
 		"title":                  "Holler Back",
 		"rsvpHeader":             "Bitch you coming?",
@@ -167,7 +180,7 @@ func (s *server) getEvent(c *gin.Context) {
 			"event": event,
 
 			"ogTitle":                "Nicevite",
-			"ogUrl":                  fmt.Sprintf("https://nicevites.northbriton.net/event/%d", event.ID),
+			"ogUrl":                  fmt.Sprintf("https://nicevites.northbriton.net/event/%s", event.RouteID()),
 			"ogImageUrl":             "https://nicevites.northbriton.net/assets/nicevites.jpg",
 			"title":                  "Répondez s'il vous plaît",
 			"rsvpHeader":             "Be delighted to have you",
@@ -190,20 +203,22 @@ func (s *server) rsvp(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if rsvp.EventPublicID == "" && rsvp.EventID != 0 {
+		rsvp.EventPublicID = fmt.Sprint(rsvp.EventID)
+	}
 	log.Printf("Got rsvp %v", rsvp)
 
-	var event Event
-	result := s.db.Model(&Event{}).Preload("Rsvps").Find(&event, rsvp.EventID)
-	if result.Error != nil {
-		errorPage(result.Error, c)
-		return
-	}
-	if result.RowsAffected == 0 {
+	event, err := s.store.GetEvent(rsvp.EventPublicID)
+	if errors.Is(err, errNotFound) {
 		c.JSON(404, gin.H{"msg": "couldn't find your event"})
 		return
 	}
+	if err != nil {
+		errorPage(err, c)
+		return
+	}
 	for _, existing := range event.Rsvps {
-		if strings.EqualFold(existing.Attendee, rsvp.Attendee) {
+		if normalizeAttendee(existing.Attendee) == normalizeAttendee(rsvp.Attendee) {
 			log.Printf("Found existing rsvp %s updating count from ", rsvp.Attendee)
 			//a json page is probably not the best experience
 			errorPage(fmt.Errorf("already got an RSVP for %s", rsvp.Attendee), c)
@@ -218,12 +233,12 @@ func (s *server) rsvp(c *gin.Context) {
 		}
 	}
 	//TOOD make sure it point at a valid event?
-	if err := s.db.Create(&rsvp).Error; err != nil {
+	if err := s.store.CreateRsvp(&rsvp); err != nil {
 		errorPage(err, c)
 		return
 	}
 
-	c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d", rsvp.EventID))
+	c.Redirect(http.StatusFound, fmt.Sprintf("/event/%s", rsvp.EventPublicID))
 }
 
 func errorPage(err error, c *gin.Context) {

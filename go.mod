@@ -5,6 +5,7 @@ go 1.21.0
 toolchain go1.23.4
 
 require (
+	github.com/btnguyen2k/gocosmos v1.1.0
 	github.com/gin-gonic/gin v1.10.0
 	gorm.io/driver/sqlite v1.5.7
 	gorm.io/driver/sqlserver v1.5.4
@@ -12,6 +13,12 @@ require (
 )
 
 require (
+	github.com/btnguyen2k/consu/checksum v1.1.0 // indirect
+	github.com/btnguyen2k/consu/g18 v0.1.0 // indirect
+	github.com/btnguyen2k/consu/gjrc v0.2.1 // indirect
+	github.com/btnguyen2k/consu/olaf v0.1.3 // indirect
+	github.com/btnguyen2k/consu/reddo v0.1.8 // indirect
+	github.com/btnguyen2k/consu/semita v0.1.5 // indirect
 	github.com/bytedance/sonic v1.12.8 // indirect
 	github.com/bytedance/sonic/loader v0.2.3 // indirect
 	github.com/cloudwego/base64x v0.1.5 // indirect
