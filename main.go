@@ -1,25 +1,21 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	//"html/template"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/driver/sqlite"
-	"gorm.io/driver/sqlserver"
-	"gorm.io/gorm"
 )
 
 type server struct {
-	db *gorm.DB
+	store *cosmosStore
 }
-
-//https://gorm.io/docs/has_many.html
 
 func isNice(c *gin.Context) bool {
 	if strings.HasPrefix(strings.ToLower(c.Request.Host), "nice") {
@@ -33,28 +29,12 @@ func isNice(c *gin.Context) bool {
 }
 
 func main() {
-	var data gorm.Dialector
-	if mssql_dsn, found := os.LookupEnv("MSSQL_DSN"); found {
-		log.Printf("using mssql %s", mssql_dsn)
-		data = sqlserver.Open(mssql_dsn)
-	} else {
-		sqllitefile, found := os.LookupEnv("SQLLITE_FILE")
-		if !found {
-			sqllitefile = "test.db"
-		}
-		log.Printf("using sqllite db file %s", sqllitefile)
-		data = sqlite.Open(sqllitefile)
-	}
-
-	db, err := gorm.Open(data, &gorm.Config{})
+	ctx := context.Background()
+	store, err := newCosmosStoreFromEnv(ctx)
 	if err != nil {
-		panic("failed to connect database")
+		panic(err)
 	}
-
-	// Migrate the schema
-	db.AutoMigrate(&Event{})
-	db.AutoMigrate(&Rsvp{})
-	s := server{db}
+	s := server{store: store}
 
 	router := gin.Default()
 	//https://gin-gonic.com/docs/examples/html-rendering/
@@ -63,12 +43,9 @@ func main() {
 
 	router.Static("/assets", "./assets")
 	router.GET("/ready", func(c *gin.Context) {
-		actualdb, err := db.DB()
-		if err != nil {
+		if err := store.Ready(c.Request.Context()); err != nil {
 			errorPage(err, c)
-		}
-		if err := actualdb.Ping(); err != nil {
-			errorPage(err, c)
+			return
 		}
 		c.String(200, "READY")
 	})
@@ -113,32 +90,30 @@ func (s *server) postEvent(c *gin.Context) {
 	}
 
 	log.Printf("Storing event %v", event)
-	if err := s.db.Create(&event).Error; err != nil {
+	if err := s.store.CreateEvent(c.Request.Context(), &event); err != nil {
 		errorPage(err, c)
 		return
 	}
 
-	c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d", event.ID))
+	c.Redirect(http.StatusFound, fmt.Sprintf("/event/%s", event.EventID))
 }
 
 func (s *server) getEvent(c *gin.Context) {
-	var event Event
 	var id struct {
-		Id uint `uri:"id" binding:"required"`
+		ID string `uri:"id" binding:"required"`
 	}
 	if err := c.ShouldBindUri(&id); err != nil {
 		errorPage(err, c)
 		return
 	}
 
-	result := s.db.Model(&Event{}).Preload("Rsvps").Find(&event, id.Id)
-	log.Printf("result: %v", result)
-	if result.Error != nil {
-		errorPage(result.Error, c)
+	event, err := s.store.GetEvent(c.Request.Context(), id.ID)
+	if errors.Is(err, errNotFound) {
+		c.JSON(404, gin.H{"msg": "couldn't find your event"})
 		return
 	}
-	if result.RowsAffected == 0 {
-		c.JSON(404, gin.H{"msg": "couldn't find your event"})
+	if err != nil {
+		errorPage(err, c)
 		return
 	}
 
@@ -150,7 +125,7 @@ func (s *server) getEvent(c *gin.Context) {
 		"event": event,
 
 		"ogTitle":                "Aggrovite",
-		"ogUrl":                  fmt.Sprintf("https://aggrovites.northbriton.net/event/%d", event.ID),
+		"ogUrl":                  fmt.Sprintf("https://aggrovites.northbriton.net/event/%s", event.EventID),
 		"ogImageUrl":             "https://aggrovites.northbriton.net/assets/aggrovites.jpg",
 		"title":                  "Holler Back",
 		"rsvpHeader":             "Bitch you coming?",
@@ -167,7 +142,7 @@ func (s *server) getEvent(c *gin.Context) {
 			"event": event,
 
 			"ogTitle":                "Nicevite",
-			"ogUrl":                  fmt.Sprintf("https://nicevites.northbriton.net/event/%d", event.ID),
+			"ogUrl":                  fmt.Sprintf("https://nicevites.northbriton.net/event/%s", event.EventID),
 			"ogImageUrl":             "https://nicevites.northbriton.net/assets/nicevites.jpg",
 			"title":                  "Répondez s'il vous plaît",
 			"rsvpHeader":             "Be delighted to have you",
@@ -192,38 +167,30 @@ func (s *server) rsvp(c *gin.Context) {
 	}
 	log.Printf("Got rsvp %v", rsvp)
 
-	var event Event
-	result := s.db.Model(&Event{}).Preload("Rsvps").Find(&event, rsvp.EventID)
-	if result.Error != nil {
-		errorPage(result.Error, c)
-		return
-	}
-	if result.RowsAffected == 0 {
+	event, err := s.store.GetEvent(c.Request.Context(), rsvp.EventID)
+	if errors.Is(err, errNotFound) {
 		c.JSON(404, gin.H{"msg": "couldn't find your event"})
 		return
 	}
+	if err != nil {
+		errorPage(err, c)
+		return
+	}
 	for _, existing := range event.Rsvps {
-		if strings.EqualFold(existing.Attendee, rsvp.Attendee) {
+		if normalizeAttendee(existing.Attendee) == normalizeAttendee(rsvp.Attendee) {
 			log.Printf("Found existing rsvp %s updating count from ", rsvp.Attendee)
 			//a json page is probably not the best experience
 			errorPage(fmt.Errorf("already got an RSVP for %s", rsvp.Attendee), c)
-			/* Alternatively could let anyone update... or only update if they have a cookie of who rsvpd?
-			rsvp.ID = existing.ID
-			if err := s.db.Save(&rsvp).Error; err != nil {
-				errorPage(err, c)
-				return
-			}
-			c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d", rsvp.EventID))*/
 			return
 		}
 	}
 	//TOOD make sure it point at a valid event?
-	if err := s.db.Create(&rsvp).Error; err != nil {
+	if err := s.store.CreateRsvp(c.Request.Context(), &rsvp); err != nil {
 		errorPage(err, c)
 		return
 	}
 
-	c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d", rsvp.EventID))
+	c.Redirect(http.StatusFound, fmt.Sprintf("/event/%s", rsvp.EventID))
 }
 
 func errorPage(err error, c *gin.Context) {

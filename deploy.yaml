@@ -23,10 +23,19 @@ spec:
       - env:
         - name: GIN_MODE
           value: release
-        - name: MSSQL_DSN
+        - name: COSMOS_DATABASE
+          value: aggrovites
+        - name: COSMOS_CONTAINER
+          value: events
+        - name: COSMOS_ENDPOINT
           valueFrom:
             secretKeyRef:
-              key: MSSQL_DSN
+              key: COSMOS_ENDPOINT
+              name: aggrovites
+        - name: COSMOS_KEY
+          valueFrom:
+            secretKeyRef:
+              key: COSMOS_KEY
               name: aggrovites
         image: paulgmiller/aggrovites:e448115
         imagePullPolicy: Always

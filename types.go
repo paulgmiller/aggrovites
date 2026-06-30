@@ -1,28 +1,52 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base32"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
-
-	"gorm.io/gorm"
 )
 
 type Event struct {
-	gorm.Model
-	Description string
-	Start       time.Time `time_format:"2006-01-02T15:04"` //no timezone from datetime-local picker.
-	TimeZone    string
-	Rsvps       []Rsvp
+	ID          string    `json:"id" form:"-"`
+	EventID     string    `json:"event_id" form:"-"`
+	DocType     string    `json:"doc_type" form:"-"`
+	Description string    `json:"description" form:"Description"`
+	Start       time.Time `json:"start" form:"Start" time_format:"2006-01-02T15:04"` //no timezone from datetime-local picker.
+	TimeZone    string    `json:"time_zone" form:"TimeZone"`
+	Rsvps       []Rsvp    `json:"-" form:"-"`
 }
 
 type Rsvp struct {
-	gorm.Model
-	Attendee string
-	Guests   uint `gorm:"default:1"`
-	Declined bool
-	EventID  uint
+	ID         string `json:"id" form:"-"`
+	EventID    string `json:"event_id" form:"EventID"`
+	DocType    string `json:"doc_type" form:"-"`
+	Attendee   string `json:"attendee" form:"Attendee"`
+	AttendeeID string `json:"attendee_id" form:"-"`
+	Guests     uint   `json:"guests" form:"Guests"`
+	Declined   bool   `json:"declined" form:"Declined"`
+}
+
+func newID() (string, error) {
+	var b [10]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b[:])), nil
+}
+
+func eventDocID(eventID string) string {
+	return "event:" + eventID
+}
+
+func rsvpDocID(eventID, attendee string) string {
+	return "rsvp:" + eventID + ":" + url.PathEscape(normalizeAttendee(attendee))
+}
+
+func normalizeAttendee(attendee string) string {
+	return strings.ToLower(strings.TrimSpace(attendee))
 }
 
 // this puts this in  ISO 8601  so javascript can parse it
@@ -106,7 +130,7 @@ func (e Event) Title() string {
 	if e.Description == "" {
 		return ""
 	}
-	
+
 	// Try to find the first sentence ending with . ! or ?
 	for i, char := range e.Description {
 		if char == '.' || char == '!' || char == '?' {
@@ -118,17 +142,17 @@ func (e Event) Title() string {
 			}
 		}
 	}
-	
+
 	// If no sentence ending found or sentence is too long, take first 10 words
 	words := strings.Fields(e.Description)
 	if len(words) == 0 {
 		return ""
 	}
-	
+
 	if len(words) <= 10 {
 		return e.Description
 	}
-	
+
 	return strings.Join(words[:10], " ")
 }
 
@@ -137,18 +161,18 @@ func (e Event) Body() string {
 	if e.Description == "" {
 		return ""
 	}
-	
+
 	title := e.Title()
 	if title == e.Description {
 		return "" // The entire description is the title
 	}
-	
+
 	// Find where the title ends in the original description
 	titleEnd := strings.Index(e.Description, title)
 	if titleEnd == -1 {
 		return e.Description // Fallback
 	}
-	
+
 	remaining := strings.TrimSpace(e.Description[titleEnd+len(title):])
 	return remaining
 }

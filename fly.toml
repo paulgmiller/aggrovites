@@ -7,7 +7,8 @@ kill_timeout = 5
 processes = []
 
 [env]
-  SQLLITE_FILE = "/data/prod.db"
+  COSMOS_DATABASE = "aggrovites"
+  COSMOS_CONTAINER = "events"
 
 [experimental]
   allowed_public_ports = []
@@ -39,7 +40,3 @@ processes = []
     interval = "15s"
     restart_limit = 0
     timeout = "2s"
-
-[mounts]
-  source="sqlite"
-  destination="/data"
