@@ -6,9 +6,6 @@ kill_signal = "SIGINT"
 kill_timeout = 5
 processes = []
 
-[env]
-  SQLLITE_FILE = "/data/prod.db"
-
 [experimental]
   allowed_public_ports = []
   auto_rollback = true
@@ -39,7 +36,3 @@ processes = []
     interval = "15s"
     restart_limit = 0
     timeout = "2s"
-
-[mounts]
-  source="sqlite"
-  destination="/data"
