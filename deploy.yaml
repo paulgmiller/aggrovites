@@ -24,7 +24,7 @@ spec:
         - name: GIN_MODE
           value: release
         - name: DATABASE_URL
-          value: postgresql://root@cockroachdb-public.cockroach.svc.cluster.local:26257/vitesdb?sslmode=disable&default_query_exec_mode=simple_protocol
+          value: postgresql://root@cockroachdb-public.cockroach.svc.cluster.local:26257/vitesdb?sslmode=disable
         image: paulgmiller/aggrovites:433f434
         imagePullPolicy: Always
         name: aggrovites
