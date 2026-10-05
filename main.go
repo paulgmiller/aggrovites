@@ -10,8 +10,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/driver/sqlite"
-	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
 )
 
@@ -33,27 +31,23 @@ func isNice(c *gin.Context) bool {
 }
 
 func main() {
-	var data gorm.Dialector
-	if mssql_dsn, found := os.LookupEnv("MSSQL_DSN"); found {
-		log.Printf("using mssql %s", mssql_dsn)
-		data = sqlserver.Open(mssql_dsn)
-	} else {
-		sqllitefile, found := os.LookupEnv("SQLLITE_FILE")
-		if !found {
-			sqllitefile = "test.db"
-		}
-		log.Printf("using sqllite db file %s", sqllitefile)
-		data = sqlite.Open(sqllitefile)
+	if len(os.Args) > 1 && os.Args[1] == "migrate-data" && os.Getenv("DATABASE_URL") == "" {
+		log.Fatal("DATABASE_URL is required for data migration")
 	}
-
-	db, err := gorm.Open(data, &gorm.Config{})
+	db, err := openDestination()
 	if err != nil {
-		panic("failed to connect database")
+		log.Fatal(err)
 	}
 
-	// Migrate the schema
-	db.AutoMigrate(&Event{})
-	db.AutoMigrate(&Rsvp{})
+	if len(os.Args) > 1 && os.Args[1] == "migrate-data" {
+		if err := runDataMigration(db); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if err := migrateSchema(db); err != nil {
+		log.Fatal(err)
+	}
 	s := server{db}
 
 	router := gin.Default()
