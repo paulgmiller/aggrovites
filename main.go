@@ -6,7 +6,6 @@ import (
 	//"html/template"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -31,20 +30,11 @@ func isNice(c *gin.Context) bool {
 }
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "migrate-data" && os.Getenv("DATABASE_URL") == "" {
-		log.Fatal("DATABASE_URL is required for data migration")
-	}
 	db, err := openDestination()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if len(os.Args) > 1 && os.Args[1] == "migrate-data" {
-		if err := runDataMigration(db); err != nil {
-			log.Fatal(err)
-		}
-		return
-	}
 	if err := migrateSchema(db); err != nil {
 		log.Fatal(err)
 	}
