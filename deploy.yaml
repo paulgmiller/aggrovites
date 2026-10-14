@@ -24,7 +24,10 @@ spec:
         - name: GIN_MODE
           value: release
         - name: DATABASE_URL
-          value: postgresql://root@cockroachdb-public.cockroach.svc.cluster.local:26257/vitesdb?sslmode=disable
+          valueFrom:
+            secretKeyRef:
+              name: cockroachdb-connection
+              key: DATABASE_URL
         image: paulgmiller/aggrovites:433f434
         imagePullPolicy: Always
         name: aggrovites
