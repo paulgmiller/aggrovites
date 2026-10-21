@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -380,8 +382,8 @@ func TestOpenAIRequestsAndImageResize(t *testing.T) {
 	if err := jpeg.Encode(&source, img, nil); err != nil {
 		t.Fatal(err)
 	}
-	ai := &openAI{key: "test-key", textModel: "gpt-6-luna", imageModel: "gpt-image-2.5-flare", baseURL: "https://api.openai.com/v1"}
-	ai.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	ai := &openAI{textModel: "gpt-6-luna", imageModel: "gpt-image-2.5-flare"}
+	ai.client = openai.NewClient(option.WithAPIKey("test-key"), option.WithMaxRetries(0), option.WithHTTPClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if req.Header.Get("Authorization") != "Bearer test-key" || req.Method != "POST" {
 			t.Fatal("wrong request authentication/method")
 		}
@@ -399,8 +401,8 @@ func TestOpenAIRequestsAndImageResize(t *testing.T) {
 			response = map[string]any{"data": []any{map[string]string{"b64_json": base64.StdEncoding.EncodeToString(source.Bytes())}}}
 		}
 		data, _ := json.Marshal(response)
-		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(data)), Header: make(http.Header)}, nil
-	})}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(data)), Header: http.Header{"Content-Type": {"application/json"}}}, nil
+	})}))
 	for _, voice := range []string{"nice", "aggro"} {
 		input := inputForm()
 		start, _ := time.Parse("2006-01-02T15:04", input.Get("Start"))
@@ -421,6 +423,17 @@ func TestOpenAIRequestsAndImageResize(t *testing.T) {
 		}
 		if body["model"] != "gpt-6-luna" || body["store"] != false || !strings.Contains(body["input"].(string), "America/Los_Angeles") {
 			t.Fatal("incorrect text request")
+		}
+		format := body["text"].(map[string]any)["format"].(map[string]any)
+		schema := format["schema"].(map[string]any)
+		if format["type"] != "json_schema" || format["strict"] != true || schema["additionalProperties"] != false || len(schema["required"].([]any)) != 3 {
+			t.Fatal("invitation schema must strictly require all three output fields")
+		}
+		properties := schema["properties"].(map[string]any)
+		for _, field := range []string{"markdown", "location", "image_prompt"} {
+			if property, ok := properties[field].(map[string]any); !ok || property["type"] != "string" {
+				t.Fatalf("incorrect invitation schema for %s", field)
+			}
 		}
 	}
 	imageData, err := ai.Image(context.Background(), "Dinner illustration")
@@ -453,9 +466,9 @@ func TestOpenAIRejectsFailedOrIncompleteResponses(t *testing.T) {
 		{"malformed", 200, `{`},
 	} {
 		t.Run(fixture.name, func(t *testing.T) {
-			a := &openAI{baseURL: "https://api.openai.com/v1", client: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
-				return &http.Response{StatusCode: fixture.status, Body: io.NopCloser(strings.NewReader(fixture.body))}, nil
-			})}}
+			a := &openAI{client: openai.NewClient(option.WithAPIKey("test-key"), option.WithMaxRetries(0), option.WithHTTPClient(&http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: fixture.status, Body: io.NopCloser(strings.NewReader(fixture.body)), Header: http.Header{"Content-Type": {"application/json"}}}, nil
+			})}))}
 			_, err := a.Generate(context.Background(), Event{})
 			if err == nil || strings.Contains(err.Error(), "private input") {
 				t.Fatalf("unsafe/missing error: %v", err)

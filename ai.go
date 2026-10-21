@@ -5,17 +5,21 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
 	_ "image/png"
-	"io"
-	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/invopop/jsonschema"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/responses"
+	"github.com/openai/openai-go/v3/shared"
 	"golang.org/x/image/draw"
 )
 
@@ -30,11 +34,11 @@ type invitationGenerator interface {
 	Image(context.Context, string) ([]byte, error)
 }
 
-// Only the server knows the API key. Keeping HTTP behind this interface also
-// lets tests exercise generation without contacting OpenAI or spending money.
+// Only the server knows the API key. Tests inject an HTTP transport through
+// the SDK to exercise requests without contacting OpenAI or spending money.
 type openAI struct {
-	key, textModel, imageModel, baseURL string
-	client                              *http.Client
+	client                openai.Client
+	textModel, imageModel string
 }
 
 func configuredAI() invitationGenerator {
@@ -43,9 +47,13 @@ func configuredAI() invitationGenerator {
 		return nil
 	}
 	return &openAI{
-		key: key, textModel: envDefault("OPENAI_TEXT_MODEL", "gpt-6-luna"),
+		client: openai.NewClient(
+			option.WithAPIKey(key),
+			option.WithRequestTimeout(150*time.Second),
+			option.WithMaxRetries(0),
+		),
+		textModel:  envDefault("OPENAI_TEXT_MODEL", "gpt-6-luna"),
 		imageModel: envDefault("OPENAI_IMAGE_MODEL", "gpt-image-2.5-flare"),
-		baseURL:    "https://api.openai.com/v1", client: &http.Client{Timeout: 150 * time.Second},
 	}
 }
 
@@ -80,49 +88,25 @@ func (a *openAI) Generate(ctx context.Context, event Event) (generatedInvitation
 	input, _ := json.Marshal(map[string]string{
 		"description": event.Description, "start": event.PrettyStart(), "timezone": event.TimeZone,
 	})
-	var response struct {
-		Status string `json:"status"`
-		Output []struct {
-			Type    string `json:"type"`
-			Content []struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			} `json:"content"`
-		} `json:"output"`
-	}
-	err := a.post(ctx, "/responses", map[string]any{
-		"model": a.textModel, "instructions": invitationInstructions(event.Voice),
-		"input": string(input), "store": false, "max_output_tokens": 4000,
-		"text": map[string]any{"format": map[string]any{
-			"type": "json_schema", "name": "invitation", "strict": true,
-			"schema": map[string]any{
-				"type": "object", "additionalProperties": false,
-				"required": []string{"markdown", "location", "image_prompt"},
-				"properties": map[string]any{
-					"markdown":     map[string]string{"type": "string"},
-					"location":     map[string]string{"type": "string"},
-					"image_prompt": map[string]string{"type": "string"},
-				},
-			},
-		}},
-	}, &response)
+	format, err := invitationFormat()
 	if err != nil {
 		return result, err
 	}
-	if response.Status != "completed" {
+	response, err := a.client.Responses.New(ctx, responses.ResponseNewParams{
+		Model:           shared.ResponsesModel(a.textModel),
+		Instructions:    openai.String(invitationInstructions(event.Voice)),
+		Input:           responses.ResponseNewParamsInputUnion{OfString: openai.String(string(input))},
+		Store:           openai.Bool(false),
+		MaxOutputTokens: openai.Int(4000),
+		Text:            responses.ResponseTextConfigParam{Format: format},
+	})
+	if err != nil {
+		return result, openAIRequestError(err)
+	}
+	if response.Status != responses.ResponseStatusCompleted {
 		return result, fmt.Errorf("invitation response was not completed")
 	}
-	var output strings.Builder
-	for _, item := range response.Output {
-		if item.Type == "message" {
-			for _, content := range item.Content {
-				if content.Type == "output_text" {
-					output.WriteString(content.Text)
-				}
-			}
-		}
-	}
-	if err := json.Unmarshal([]byte(output.String()), &result); err != nil {
+	if err := json.Unmarshal([]byte(response.OutputText()), &result); err != nil {
 		return result, fmt.Errorf("invalid invitation response")
 	}
 	result.Markdown = strings.TrimSpace(result.Markdown)
@@ -134,22 +118,21 @@ func (a *openAI) Generate(ctx context.Context, event Event) (generatedInvitation
 }
 
 func (a *openAI) Image(ctx context.Context, prompt string) ([]byte, error) {
-	var response struct {
-		Data []struct {
-			Base64 string `json:"b64_json"`
-		} `json:"data"`
-	}
-	err := a.post(ctx, "/images/generations", map[string]any{
-		"model": a.imageModel, "prompt": prompt, "n": 1,
-		"size": "1024x1024", "quality": "low", "output_format": "jpeg",
-	}, &response)
+	response, err := a.client.Images.Generate(ctx, openai.ImageGenerateParams{
+		Model:        openai.ImageModel(a.imageModel),
+		Prompt:       prompt,
+		N:            openai.Int(1),
+		Size:         openai.ImageGenerateParamsSize1024x1024,
+		Quality:      openai.ImageGenerateParamsQualityLow,
+		OutputFormat: openai.ImageGenerateParamsOutputFormatJPEG,
+	})
 	if err != nil {
-		return nil, err
+		return nil, openAIRequestError(err)
 	}
 	if len(response.Data) != 1 {
 		return nil, fmt.Errorf("no artwork returned")
 	}
-	data, err := base64.StdEncoding.DecodeString(response.Data[0].Base64)
+	data, err := base64.StdEncoding.DecodeString(response.Data[0].B64JSON)
 	if err != nil {
 		return nil, fmt.Errorf("invalid artwork encoding")
 	}
@@ -175,25 +158,36 @@ func smallJPEG(data []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (a *openAI) post(ctx context.Context, path string, body, result any) error {
-	data, err := json.Marshal(body)
+// The SDK accepts a JSON Schema map; derive it from the same type we decode
+// instead of maintaining a separate set of field names and validation rules.
+func invitationFormat() (responses.ResponseFormatTextConfigUnionParam, error) {
+	reflector := jsonschema.Reflector{DoNotReference: true, AllowAdditionalProperties: false}
+	data, err := json.Marshal(reflector.Reflect(generatedInvitation{}))
 	if err != nil {
-		return err
+		return responses.ResponseFormatTextConfigUnionParam{}, err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, a.baseURL+path, bytes.NewReader(data))
-	if err != nil {
-		return err
+	var schema map[string]any
+	if err := json.Unmarshal(data, &schema); err != nil {
+		return responses.ResponseFormatTextConfigUnionParam{}, err
 	}
-	request.Header.Set("Authorization", "Bearer "+a.key)
-	request.Header.Set("Content-Type", "application/json")
-	response, err := a.client.Do(request)
-	if err != nil {
-		return fmt.Errorf("OpenAI request failed: %w", err)
+	return responses.ResponseFormatTextConfigUnionParam{
+		OfJSONSchema: &responses.ResponseFormatTextJSONSchemaConfigParam{
+			Name: "invitation", Schema: schema, Strict: openai.Bool(true),
+		},
+	}, nil
+}
+
+func openAIRequestError(err error) error {
+	// SDK API errors contain the response body, which may echo private input.
+	var apiError *openai.Error
+	if errors.As(err, &apiError) {
+		return fmt.Errorf("OpenAI returned HTTP %d", apiError.StatusCode)
 	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		// Provider bodies can echo private input; do not log or display them.
-		return fmt.Errorf("OpenAI %s returned HTTP %d", path, response.StatusCode)
+	if errors.Is(err, context.Canceled) {
+		return context.Canceled
 	}
-	return json.NewDecoder(io.LimitReader(response.Body, 24<<20)).Decode(result)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return context.DeadlineExceeded
+	}
+	return fmt.Errorf("OpenAI request failed")
 }
