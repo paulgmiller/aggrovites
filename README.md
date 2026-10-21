@@ -7,7 +7,7 @@ CockroachDB PostgreSQL URL instead. The Kubernetes deployment reads
 namespace `aggrovites`. The Secret contains:
 
 ```text
-postgresql://root:PASSWORD@cockroachdb-secure-public.cockroach.svc.cluster.local:26257/vitesdb?sslmode=require
+postgresql://root:PASSWORD@cockroachdb-secure-public.cockroach.svc.cluster.local:26257/aggrovites?sslmode=require
 ```
 
 The Secret was provisioned during the secure database migration in `zebu`.
