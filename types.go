@@ -12,6 +12,10 @@ import (
 type Event struct {
 	gorm.Model
 	Description string
+	Markdown    string    `form:"-"`
+	Voice       string    `form:"-"`
+	Location    string    `form:"-"`
+	Image       []byte    `form:"-"`
 	Start       time.Time `time_format:"2006-01-02T15:04"` //no timezone from datetime-local picker.
 	TimeZone    string
 	Rsvps       []Rsvp
@@ -79,8 +83,8 @@ func (e Event) GoogleCalendarLink() string {
 	//params.Add("text", "aggrovite")
 	params.Add("dates", fmt.Sprintf("%s/%s", e.Start.Format("20060102T150405Z"), end.Format("20060102T150405Z")))
 
-	params.Add("details", e.Description)
-	//params.Add("location", event.Location)
+	params.Add("details", e.PlainDescription())
+	params.Add("location", e.Location)
 
 	return baseURL + "&" + params.Encode()
 }
@@ -95,18 +99,21 @@ func (e Event) OutlookCalendarLink() string {
 	params.Add("startdt", e.Start.Format("2006-01-02T15:04:05"))
 	params.Add("enddt", end.Format("2006-01-02T15:04:05"))
 	//params.Add("subject", "aggrovite")
-	params.Add("body", e.Description)
-	//params.Add("location", event.Location)
+	params.Add("body", e.PlainDescription())
+	params.Add("location", e.Location)
 
 	return baseURL + "?" + params.Encode()
 }
 
 // Title returns the first sentence or first 10 words of the description for use as the H1 title
 func (e Event) Title() string {
+	if e.Markdown != "" {
+		return markdownTitle(e.Markdown)
+	}
 	if e.Description == "" {
 		return ""
 	}
-	
+
 	// Try to find the first sentence ending with . ! or ?
 	for i, char := range e.Description {
 		if char == '.' || char == '!' || char == '?' {
@@ -118,17 +125,17 @@ func (e Event) Title() string {
 			}
 		}
 	}
-	
+
 	// If no sentence ending found or sentence is too long, take first 10 words
 	words := strings.Fields(e.Description)
 	if len(words) == 0 {
 		return ""
 	}
-	
+
 	if len(words) <= 10 {
 		return e.Description
 	}
-	
+
 	return strings.Join(words[:10], " ")
 }
 
@@ -137,18 +144,18 @@ func (e Event) Body() string {
 	if e.Description == "" {
 		return ""
 	}
-	
+
 	title := e.Title()
 	if title == e.Description {
 		return "" // The entire description is the title
 	}
-	
+
 	// Find where the title ends in the original description
 	titleEnd := strings.Index(e.Description, title)
 	if titleEnd == -1 {
 		return e.Description // Fallback
 	}
-	
+
 	remaining := strings.TrimSpace(e.Description[titleEnd+len(title):])
 	return remaining
 }

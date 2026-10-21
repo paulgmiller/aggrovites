@@ -6,12 +6,13 @@
 
     <!-- WhatsApp/open graph link preview -->
     <meta property="og:title" content="{{ .ogTitle }}"/>
-    <meta property="og:description" content="{{.event.Description}}"/>
+    <meta property="og:description" content="{{.ogDescription}}"/>
     <meta property="og:url" content="{{ .ogUrl }}"/>
     <meta property="og:image"content="{{ .ogImageUrl }}"/> 
 
     <link href="/assets/bootstrap.min.css" rel="stylesheet">
     <link href="/assets/nice-forms.css" rel="stylesheet">
+    <link href="/assets/invitation.css" rel="stylesheet">
     <title>{{ .title }}</title>
     <style>
         .form-label {
@@ -48,7 +49,7 @@
         }
         @media (min-width: 800px) {
             .section-primary {
-                flex 1:
+                flex: 1;
             }
             .section-secondary {
                 flex: 1;
@@ -84,10 +85,16 @@
 <body>
     <div class="section-group">
         <div class="section-primary">
+            {{if .event.Image}}<img class="event-artwork" src="/event/{{.event.ID}}/image" alt="Event illustration" width="512" height="512">{{end}}
+            {{if .event.Markdown}}
+            <article class="invitation-content">{{.event.InvitationHTML}}</article>
+            {{else}}
             <h1>{{.event.Title}}</h1>
             {{if .event.Body}}<p>{{.event.Body}}</p>{{end}}
+            {{end}}
+            <p><a href="{{.markdownURL}}" download>Download invitation as Markdown</a></p>
             <p><script>document.write(new Date("{{.event.PrettyStart}}").toLocaleDateString('en-US', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit'}));</script></p>
-            <form action="/rsvp" method="post" class="form">
+            <form action="{{.rsvpAction}}" method="post" class="form">
                 <h3>{{ .rsvpHeader }}</h3>
                 <div class="nice-form-group">
                     <label for="name">{{ .rsvpForWhom }}</label>
@@ -107,7 +114,7 @@
                     </select>
                 </div>
                 <input type="hidden" name="EventID" value="{{.event.ID}}">
-                <input type="hidden" name="Declined" value="false">
+                <input type="hidden" id="Declined" name="Declined" value="false">
                 <div class="nice-form-group">
                     <!-- guestCount is rquired for accepts but not rejects -->
                     <input type="submit" class="btn btn-success" value="{{ .rsvpAccept }}" 

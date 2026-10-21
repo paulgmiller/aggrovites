@@ -1,0 +1,8 @@
+.invitation-editor { max-width: 760px; margin: 24px auto; padding-bottom: 48px; }
+.event-artwork { display: block; width: 100%; max-width: 512px; height: auto; border-radius: 12px; margin: 16px 0; }
+.invitation-content { overflow-wrap: anywhere; }
+.invitation-content img { max-width: 100%; height: auto; }
+.invitation-content pre { overflow-x: auto; }
+.invitation-content table { display: block; overflow-x: auto; }
+.section-primary, .section-secondary { min-width: 0; padding: 12px; }
+textarea.font-monospace { font-size: 0.9rem; }

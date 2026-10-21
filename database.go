@@ -30,5 +30,5 @@ func openDestination() (*gorm.DB, error) {
 }
 
 func migrateSchema(db *gorm.DB) error {
-	return db.AutoMigrate(&Event{}, &Rsvp{})
+	return db.AutoMigrate(&Event{}, &Rsvp{}, &InvitationDraft{})
 }

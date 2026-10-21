@@ -14,6 +14,7 @@ import (
 
 type server struct {
 	db *gorm.DB
+	ai invitationGenerator
 }
 
 //https://gorm.io/docs/has_many.html
@@ -38,71 +39,75 @@ func main() {
 	if err := migrateSchema(db); err != nil {
 		log.Fatal(err)
 	}
-	s := server{db}
+	s := &server{db: db, ai: configuredAI()}
+	log.Print(newRouter(s).Run(":9000"))
+}
 
+func newRouter(s *server) *gin.Engine {
 	router := gin.Default()
+	router.Use(func(c *gin.Context) {
+		if c.Request.Method == http.MethodPost {
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 256<<10)
+		}
+		c.Next()
+	})
 	//https://gin-gonic.com/docs/examples/html-rendering/
 	//subdirectories did not seem to work here
 	router.LoadHTMLGlob("templates/*")
 
 	router.Static("/assets", "./assets")
 	router.GET("/ready", func(c *gin.Context) {
-		actualdb, err := db.DB()
+		actualdb, err := s.db.DB()
 		if err != nil {
 			errorPage(err, c)
+			return
 		}
 		if err := actualdb.Ping(); err != nil {
 			errorPage(err, c)
+			return
 		}
 		c.String(200, "READY")
 	})
 
-	router.GET("/", func(c *gin.Context) {
-		template := "create.tmpl"
-		htmlObj := gin.H{
-			"title":              "Make an event!",
-			"headerText":         "What's going down?",
-			"startTimeFormLabel": "When?",
-			"submitLabel":        "Let's fucking GO!",
-		}
-
-		if isNice(c) {
-			htmlObj = gin.H{
-				"title":              "Make an event!",
-				"headerText":         "How can I help?",
-				"startTimeFormLabel": "When?",
-				"submitLabel":        "Let's make some magic!",
-			}
-		}
-		c.HTML(http.StatusOK, template, htmlObj)
-	})
+	router.GET("/", s.newInvitation)
+	router.POST("/event/preview", s.previewInvitation)
+	router.GET("/draft/:token", s.getDraft)
+	router.POST("/draft/:token", s.updateDraft)
+	router.GET("/draft/:token/image", s.draftImage)
 	router.POST("/event", s.postEvent)
 	router.GET("/event/:id", s.getEvent)
+	router.GET("/event/:id/image", s.eventImage)
+	router.GET("/event/:id/invitation.md", s.downloadMarkdown)
 
 	router.POST("/rsvp", s.rsvp)
 
-	log.Print(router.Run(":9000").Error())
+	return router
 }
 
 func (s *server) postEvent(c *gin.Context) {
-	var event Event
-	if err := c.ShouldBind(&event); err != nil {
+	if c.PostForm("DraftToken") != "" {
+		s.publishDraft(c)
+		return
+	}
+	// Keep the legacy plain-text endpoint, binding only host-editable fields.
+	var input eventInput
+	if err := c.ShouldBind(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	event := input.event()
 
 	if err := event.Validate(); err != nil {
 		errorPage(err, c)
 		return
 	}
 
-	log.Printf("Storing event %v", event)
 	if err := s.db.Create(&event).Error; err != nil {
 		errorPage(err, c)
 		return
 	}
 
-	c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d", event.ID))
+	c.Redirect(http.StatusFound, sitePath(c, fmt.Sprintf("/event/%d", event.ID)))
 }
 
 func (s *server) getEvent(c *gin.Context) {
@@ -125,8 +130,6 @@ func (s *server) getEvent(c *gin.Context) {
 		c.JSON(404, gin.H{"msg": "couldn't find your event"})
 		return
 	}
-
-	log.Printf("Got event %v", event)
 
 	template := "event.tmpl"
 	//should we validate this in some way to make sure we don't miss any fields?
@@ -165,6 +168,17 @@ func (s *server) getEvent(c *gin.Context) {
 		}
 	}
 
+	htmlObj["ogDescription"] = event.PlainDescription()
+	htmlObj["rsvpAction"] = sitePath(c, "/rsvp")
+	htmlObj["markdownURL"] = sitePath(c, fmt.Sprintf("/event/%d/invitation.md", event.ID))
+	if event.Markdown != "" {
+		htmlObj["ogTitle"] = event.Title()
+		htmlObj["title"] = event.Title()
+	}
+	if len(event.Image) != 0 {
+		htmlObj["ogImageUrl"] = fmt.Sprintf("%s/event/%d/image", publicBaseURL(c), event.ID)
+	}
+	htmlObj["ogUrl"] = fmt.Sprintf("%s/event/%d", publicBaseURL(c), event.ID)
 	c.HTML(http.StatusOK, template, htmlObj)
 }
 
@@ -207,7 +221,7 @@ func (s *server) rsvp(c *gin.Context) {
 		return
 	}
 
-	c.Redirect(http.StatusFound, fmt.Sprintf("/event/%d", rsvp.EventID))
+	c.Redirect(http.StatusFound, sitePath(c, fmt.Sprintf("/event/%d", rsvp.EventID)))
 }
 
 func errorPage(err error, c *gin.Context) {
