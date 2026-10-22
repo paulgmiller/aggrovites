@@ -16,7 +16,55 @@ by subsequent database deployments. Keep passwords out of Git. The application
 needs no certificate mounts; `sslmode=require` encrypts the connection but does
 not verify the database server's identity.
 
-GORM creates or updates the `events` and `rsvps` tables on startup.
+GORM creates or updates the `events` and `rsvps` tables on startup. Existing
+events keep their original plain-text display.
+
+## AI invitations
+
+Set `OPENAI_API_KEY` in the server environment to enable invitation generation.
+The optional model settings are:
+
+| Variable | Default |
+| --- | --- |
+| `OPENAI_TEXT_MODEL` | `gpt-6-luna` |
+| `OPENAI_IMAGE_MODEL` | `gpt-image-2.5-flare` |
+
+The text model uses the Responses API with structured output containing Markdown,
+an explicitly stated location, and an illustration prompt. The image model uses
+the Images API (`1024x1024`, low quality); the app stores a 512-pixel JPEG.
+Your OpenAI project must have access to the configured models. API keys stay on
+the server and are never sent to the browser.
+
+Hosts enter their description, date, and time, then submit to create the event
+and view the formatted invitation. Share the event URL when happy with it. To
+make changes, use the browser back button, edit the details, and create another
+event. Events become accessible immediately; there is no draft or publish step.
+Aggrovites generates aggressive, profane invitations; Nicevites generates extremely polite ones. The creation
+site's voice is retained even if guests open the event on the other hostname.
+For local Nicevites testing, open `http://localhost:9000/?host=nice`.
+
+URLs in the invitation become clickable. A stated venue or address becomes a
+Google Maps directions link; no Google API key or geocoding service is required.
+Guests see the formatted invitation, illustration, and RSVP form. Markdown is
+stored internally for rendering; no editor or download is exposed.
+
+Events and artwork live in the database, so no writable filesystem or external
+image hosting is needed. Generation runs only when creating an event; refreshing
+or sharing its page does not make API calls. Each form submission creates a new
+event. If text generation fails, the form retains the entered details for retry
+or creation without AI. If artwork fails, the event is created without it.
+Without `OPENAI_API_KEY`, hosts can still create invitations from their own text.
+
+`deploy.yaml` optionally reads `OPENAI_API_KEY` from the `openai-api` Kubernetes
+Secret in namespace `aggrovites`. Provision that Secret with your normal secret
+management workflow, then restart the deployment to enable AI. Without the Secret,
+the app remains available in manual mode. Never put credentials in YAML or Git.
+Override the model defaults with environment variables in the deployment if needed.
+
+## Verify
+
+Run `go test ./...` and `go vet ./...`. Tests use a temporary SQLite database and
+mock OpenAI at the HTTP transport boundary; they make no paid API calls.
 
 ## Build
 
@@ -25,6 +73,4 @@ current commit. Update the image tag in `deploy.yaml` before applying the
 Kubernetes deployment.
 
 ## TODOs
-* location/maps
 * use cookies to remember invites? (ha passkeys?)
-* make things linkable.

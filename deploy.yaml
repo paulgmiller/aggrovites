@@ -23,12 +23,17 @@ spec:
       - env:
         - name: GIN_MODE
           value: release
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai
+              key: OPENAI_API_KEY
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
               name: roachkey
               key: DATABASE_URL
-        image: paulgmiller/aggrovites:433f434
+        image: paulgmiller/aggrovites:6d2f41c
         imagePullPolicy: Always
         name: aggrovites
         securityContext:

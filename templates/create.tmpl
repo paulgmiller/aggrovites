@@ -4,62 +4,40 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="/assets/bootstrap.min.css" rel="stylesheet">
+    <link href="/assets/invitation.css" rel="stylesheet">
     <title>{{ .title }}</title>
-    <style>
-        .container {
-         	margin-top: 20px;
-            max-width: 600px; /* Sets a maximum width for the container */
-            margin-left: auto; /* Centers the container */
-            margin-right: auto; /* Centers the container */
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-label {
-            margin-bottom: 5px;
-        }
-    </style>
-    <script type="text/javascript">
+    <script>
         (function(c,l,a,r,i,t,y){
             c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
             t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
             y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
         })(window, document, "clarity", "script", "nl9q05t0mc");
-    </script>	
+    </script>
 </head>
 <body>
-    <div class="container">
-        <h3>{{ .headerText }}</h2>
-        <form action="/event" method="post">
-            <div class="form-group">
-                <textarea id="Description" name="Description" rows="6" class="form-control"></textarea>
-            </div>
-            <div class="form-group">
-                <label for="Start" class="form-label">{{ .startTimeFormLabel }}</label>
-                <!-- consider https://github.com/williamtroup/Calendar.js/ -->
-                <input type="datetime-local" id="Start" name="Start" class="form-control">
-				<input type="hidden" id="TimeZone" name="TimeZone" >
-                <script type="text/javascript">
-                    function toLocalISOString(date) {
-                        const localDate = new Date(date - date.getTimezoneOffset() * 60000); //offset in milliseconds. Credit https://stackoverflow.com/questions/10830357/javascript-toisostring-ignores-timezone-offset
-
-                        // Round up to next hour, removing minutes, seconds, and milliseconds
-                        localDate.setMinutes(0, 0, 0);
-                        localDate.setHours(localDate.getHours() + 1);
-                        return localDate.toISOString().slice(0, -1);
-                    }
-                    window.addEventListener("load", () => {
-                        document.getElementById("Start").value = toLocalISOString(new Date());
-                    });
-                </script>
-            </div>
-            <input type="submit" class="btn btn-success" value="{{ .submitLabel }}">
-        </form>
-    </div>
-    <script src="/assets/bootstrap.bundle.min.js"></script>
-	<script>
-		const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-		document.getElementById('TimeZone').value = tz;
-	</script>
+<main class="container invitation-editor">
+    <h1>{{ .headerText }}</h1>
+    {{if .error}}<p class="alert alert-warning" role="alert">{{.error}}</p>{{end}}
+    <form action="{{.createAction}}" method="post" data-progress="Creating your invitation. Artwork may take a couple of minutes…">
+        <div class="mb-3">
+            <label for="Description" class="form-label">What's the occasion? Include any links and location.</label>
+            <textarea id="Description" name="Description" rows="7" class="form-control" maxlength="12000" required>{{with .input}}{{.Description}}{{end}}</textarea>
+        </div>
+        <div class="mb-3">
+            <label for="Start" class="form-label">When?</label>
+            <input type="datetime-local" id="Start" name="Start" class="form-control" required value="{{with .input}}{{if not .Start.IsZero}}{{.Start.Format "2006-01-02T15:04"}}{{end}}{{end}}">
+            <input type="hidden" id="TimeZone" name="TimeZone" value="{{with .input}}{{.TimeZone}}{{end}}">
+        </div>
+        {{if .aiEnabled}}
+        <button type="submit" name="Generate" value="true" class="btn btn-success">Create invitation</button>
+        <button type="submit" name="Generate" value="false" class="btn btn-outline-secondary">Create without AI</button>
+        {{else}}
+        <p>Create your invitation, then share its link when you're happy with it.</p>
+        <button type="submit" name="Generate" value="false" class="btn btn-success">Create invitation</button>
+        {{end}}
+        <p data-progress-message role="status" class="mt-3" hidden></p>
+    </form>
+</main>
+<script src="/assets/invitation.js" defer></script>
 </body>
 </html>
