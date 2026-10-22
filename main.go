@@ -70,9 +70,6 @@ func newRouter(s *server) *gin.Engine {
 	})
 
 	router.GET("/", s.newInvitation)
-	router.POST("/event/preview", s.previewInvitation)
-	router.GET("/draft/:token", s.getDraft)
-	router.GET("/draft/:token/image", s.draftImage)
 	router.POST("/event", s.postEvent)
 	router.GET("/event/:id", s.getEvent)
 	router.GET("/event/:id/image", s.eventImage)
@@ -80,32 +77,6 @@ func newRouter(s *server) *gin.Engine {
 	router.POST("/rsvp", s.rsvp)
 
 	return router
-}
-
-func (s *server) postEvent(c *gin.Context) {
-	if c.PostForm("DraftToken") != "" {
-		s.publishDraft(c)
-		return
-	}
-	// Keep the legacy plain-text endpoint, binding only host-editable fields.
-	var input eventInput
-	if err := c.ShouldBind(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	event := input.event()
-
-	if err := event.Validate(); err != nil {
-		errorPage(err, c)
-		return
-	}
-
-	if err := s.db.Create(&event).Error; err != nil {
-		errorPage(err, c)
-		return
-	}
-
-	c.Redirect(http.StatusFound, sitePath(c, fmt.Sprintf("/event/%d", event.ID)))
 }
 
 func (s *server) getEvent(c *gin.Context) {

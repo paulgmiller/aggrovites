@@ -71,9 +71,6 @@ func request(t *testing.T, handler http.Handler, method, path string, values url
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
-	if w.Code >= 500 {
-		t.Fatalf("%s %s: %d %s", method, path, w.Code, w.Body.String())
-	}
 	return w
 }
 
@@ -84,92 +81,65 @@ func inputForm() url.Values {
 	}
 }
 
-func createDraft(t *testing.T, s *server, handler http.Handler, suffix string, values url.Values) InvitationDraft {
+func createEvent(t *testing.T, s *server, handler http.Handler, suffix string, values url.Values) Event {
 	t.Helper()
-	w := request(t, handler, http.MethodPost, "/event/preview"+suffix, values)
+	w := request(t, handler, http.MethodPost, "/event"+suffix, values)
 	if w.Code != http.StatusSeeOther {
-		t.Fatalf("preview: %d %s", w.Code, w.Body.String())
+		t.Fatalf("create: %d %s", w.Code, w.Body.String())
 	}
 	location, err := url.Parse(w.Header().Get("Location"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var draft InvitationDraft
-	if err := s.db.First(&draft, "token = ?", strings.TrimPrefix(location.Path, "/draft/")).Error; err != nil {
+	var event Event
+	if err := s.db.First(&event, "id = ?", strings.TrimPrefix(location.Path, "/event/")).Error; err != nil {
 		t.Fatal(err)
 	}
-	return draft
+	if strings.Contains(suffix, "nice") && location.Query().Get("host") != "nice" {
+		t.Fatal("Nicevites override lost on redirect")
+	}
+	return event
 }
 
-func TestInvitationPreviewAndPublish(t *testing.T) {
-	ai := &fakeGenerator{}
-	s, handler := testApp(t, ai)
-	draft := createDraft(t, s, handler, "?host=nice", inputForm())
-	if draft.Voice != "nice" || ai.last.Voice != "nice" || len(draft.Token) != 64 {
-		t.Fatalf("wrong draft: %+v", draft)
-	}
-	if !strings.Contains(draft.Markdown, directionsURL(draft.Location)) {
-		t.Fatal("missing encoded directions")
-	}
-	if ai.textCalls != 1 || ai.imageCalls != 1 {
-		t.Fatal("wrong generation counts")
-	}
-	page := request(t, handler, "GET", "/draft/"+draft.Token+"?host=nice", nil)
-	if page.Code != 200 || !strings.Contains(page.Body.String(), "<strong>snacks</strong>") || !strings.Contains(page.Body.String(), "/event?host=nice") {
-		t.Fatalf("preview body: %s", page.Body.String())
-	}
-	if page.Header().Get("Cache-Control") != "no-store" {
-		t.Fatal("private draft was cacheable")
-	}
-	if w := request(t, handler, "GET", "/draft/"+draft.Token+"/image", nil); w.Code != 200 {
-		t.Fatal("draft artwork unavailable")
-	}
-	if strings.Contains(page.Body.String(), "<textarea") || strings.Contains(page.Body.String(), "Update preview") || !strings.Contains(page.Body.String(), "back button") {
-		t.Fatal("preview should only offer review and publication")
-	}
-	// Publication uses the stored preview, ignoring client-supplied Markdown.
-	form := url.Values{"DraftToken": {draft.Token}, "Markdown": {"# Unreviewed replacement"}, "IncludeImage": {"true"}}
-	first := request(t, handler, "POST", "/event?host=nice", form)
-	second := request(t, handler, "POST", "/event?host=nice", form)
-	if first.Code != 303 || second.Header().Get("Location") != first.Header().Get("Location") {
-		t.Fatal("publish was not idempotent")
-	}
-	var count int64
-	s.db.Model(&Event{}).Count(&count)
-	if count != 1 {
-		t.Fatalf("published %d events", count)
-	}
-	var event Event
-	if err := s.db.First(&event).Error; err != nil {
-		t.Fatal(err)
-	}
-	if event.Markdown != draft.Markdown || event.Voice != "nice" || len(event.Image) == 0 {
-		t.Fatalf("wrong saved event: %+v", event)
-	}
-	// A different hostname does not regenerate or rewrite the reviewed text.
-	guest := request(t, handler, "GET", "/event/1", nil)
-	if strings.Count(guest.Body.String(), "<h1>") != 1 || !strings.Contains(guest.Body.String(), "<strong>snacks</strong>") || !strings.Contains(guest.Body.String(), `/event/1/image`) {
-		t.Fatalf("guest page: %s", guest.Body.String())
-	}
-	if w := request(t, handler, "GET", "/event/1/image", nil); w.Code != 200 || w.Header().Get("Content-Type") != "image/jpeg" {
-		t.Fatal("event artwork unavailable")
-	}
-	if strings.Contains(guest.Body.String(), "Download invitation") {
-		t.Fatal("guest page should not expose a Markdown export")
-	}
-	if download := request(t, handler, "GET", "/event/1/invitation.md", nil); download.Code != 404 {
-		t.Fatal("Markdown download endpoint should be removed")
-	}
-	if ai.textCalls != 1 || ai.imageCalls != 1 {
-		t.Fatal("view or publication called AI")
-	}
-	if !strings.Contains(event.GoogleCalendarLink(), "location=") || strings.Contains(event.PlainDescription(), "**") {
-		t.Fatal("calendar not using plain text/location")
-	}
-	// Existing RSVP behavior remains usable on the formatted page.
-	rsvp := request(t, handler, "POST", "/rsvp?host=nice", url.Values{"Attendee": {"Pat"}, "Guests": {"2"}, "EventID": {"1"}, "Declined": {"false"}})
-	if rsvp.Code != 302 || rsvp.Header().Get("Location") != "/event/1?host=nice" {
-		t.Fatal("RSVP failed")
+func TestCreateInvitation(t *testing.T) {
+	for _, voice := range []string{"aggro", "nice"} {
+		t.Run(voice, func(t *testing.T) {
+			ai := &fakeGenerator{}
+			s, handler := testApp(t, ai)
+			suffix := ""
+			if voice == "nice" {
+				suffix = "?host=nice"
+			}
+			event := createEvent(t, s, handler, suffix, inputForm())
+			if event.Voice != voice || ai.last.Voice != voice || len(event.Image) == 0 {
+				t.Fatalf("wrong saved event: %+v", event)
+			}
+			if !strings.Contains(event.Markdown, directionsURL(event.Location)) {
+				t.Fatal("missing encoded directions")
+			}
+			for range 2 {
+				page := request(t, handler, "GET", "/event/1", nil)
+				if page.Code != 200 || strings.Count(page.Body.String(), "<h1>") != 1 || !strings.Contains(page.Body.String(), "<strong>snacks</strong>") || !strings.Contains(page.Body.String(), `/event/1/image`) {
+					t.Fatalf("guest page: %s", page.Body.String())
+				}
+				if strings.Contains(page.Body.String(), "Publish invitation") || strings.Contains(page.Body.String(), "Download invitation") {
+					t.Fatal("event should be ready to share without another step")
+				}
+			}
+			if w := request(t, handler, "GET", "/event/1/image", nil); w.Code != 200 || w.Header().Get("Content-Type") != "image/jpeg" {
+				t.Fatal("artwork unavailable")
+			}
+			if ai.textCalls != 1 || ai.imageCalls != 1 {
+				t.Fatal("generation should happen only once during creation")
+			}
+			if !strings.Contains(event.GoogleCalendarLink(), "location=") || strings.Contains(event.PlainDescription(), "**") {
+				t.Fatal("calendar not using plain text/location")
+			}
+			rsvp := request(t, handler, "POST", "/rsvp?host=nice", url.Values{"Attendee": {"Pat"}, "Guests": {"2"}, "EventID": {"1"}, "Declined": {"false"}})
+			if rsvp.Code != 302 || rsvp.Header().Get("Location") != "/event/1?host=nice" {
+				t.Fatal("RSVP failed")
+			}
+		})
 	}
 }
 
@@ -188,67 +158,58 @@ func TestGenerationFailuresAndManualCreation(t *testing.T) {
 			}
 			s, handler := testApp(t, ai)
 			form := inputForm()
+			if mode == "text failure" {
+				response := request(t, handler, "POST", "/event", form)
+				if response.Code != 502 || !strings.Contains(response.Body.String(), "Dinner at 123 Main St") || !strings.Contains(response.Body.String(), "2026-11-21T18:00") || !strings.Contains(response.Body.String(), "America/Los_Angeles") || !strings.Contains(response.Body.String(), "Create without AI") {
+					t.Fatalf("generation failure lost input or recovery action: %s", response.Body.String())
+				}
+				var count int64
+				s.db.Model(&Event{}).Count(&count)
+				if count != 0 || fake.imageCalls != 0 {
+					t.Fatal("failed text generation should not create an event or generate artwork")
+				}
+				form.Set("Generate", "false")
+			}
 			if mode == "manual" {
 				form.Set("Generate", "false")
 			}
-			draft := createDraft(t, s, handler, "", form)
-			if draft.Description != form.Get("Description") || draft.Markdown == "" || len(draft.Image) != 0 {
-				t.Fatal("input not preserved or unexpected artwork")
+			event := createEvent(t, s, handler, "", form)
+			if event.Description != form.Get("Description") || len(event.Image) != 0 {
+				t.Fatal("source lost or unexpected artwork")
 			}
-			if mode != "manual" && draft.Notice == "" {
-				t.Fatal("failure not explained")
-			}
-			if (mode == "text failure" || mode == "unconfigured" || mode == "manual") && draft.Markdown != draft.Description {
-				t.Fatal("original text lost")
-			}
-			if mode == "image failure" && !strings.Contains(draft.Markdown, "# Come to dinner!") {
-				t.Fatal("text lost on image failure")
-			}
-			published := request(t, handler, "POST", "/event", url.Values{"DraftToken": {draft.Token}})
-			if published.Code != 303 {
-				t.Fatal("could not publish without artwork")
+			if mode == "image failure" {
+				if !strings.Contains(event.Markdown, "# Come to dinner!") {
+					t.Fatal("text lost on image failure")
+				}
+			} else if event.Markdown != event.Description {
+				t.Fatal("manual invitation should use original text")
 			}
 			if mode == "manual" && (fake.textCalls != 0 || fake.imageCalls != 0) {
 				t.Fatal("manual creation called AI")
+			}
+			if image := request(t, handler, "GET", "/event/1/image", nil); image.Code != 404 {
+				t.Fatal("event without artwork should have no image")
 			}
 		})
 	}
 }
 
-func TestNewPreviewAndDraftExpiry(t *testing.T) {
+func TestResubmissionCreatesAnotherEvent(t *testing.T) {
 	ai := &fakeGenerator{}
 	s, handler := testApp(t, ai)
-	draft := createDraft(t, s, handler, "?host=nice", inputForm())
+	first := createEvent(t, s, handler, "?host=nice", inputForm())
 	form := inputForm()
-	form.Set("Description", "New description at 123 Main St, Seattle, WA")
-	revised := createDraft(t, s, handler, "?host=nice", form)
-	if revised.Token == draft.Token || ai.textCalls != 2 || ai.last.Description != form.Get("Description") || revised.Voice != "nice" {
-		t.Fatal("resubmitting the creation form should generate a new preview")
+	form.Set("Description", "Dinner at another venue")
+	second := createEvent(t, s, handler, "?host=nice", form)
+	if second.ID == first.ID || second.Description != form.Get("Description") || ai.textCalls != 2 {
+		t.Fatal("resubmission should create another event")
 	}
-	if update := request(t, handler, "POST", "/draft/"+draft.Token, url.Values{"Markdown": {"# Changed"}}); update.Code != 404 {
-		t.Fatal("draft update endpoint should be removed")
-	}
-	var original InvitationDraft
-	if err := s.db.First(&original, "token = ?", draft.Token).Error; err != nil {
+	var original Event
+	if err := s.db.First(&original, first.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if original.Description != draft.Description || original.Markdown != draft.Markdown {
-		t.Fatal("creating another preview changed the original")
-	}
-	s.db.Model(&draft).Update("expires_at", time.Now().Add(-time.Minute))
-	for _, path := range []string{"/draft/" + draft.Token, "/draft/" + draft.Token + "/image"} {
-		if w := request(t, handler, "GET", path, nil); w.Code != 404 {
-			t.Fatalf("expired draft accessible at %s", path)
-		}
-	}
-	if w := request(t, handler, "POST", "/event", url.Values{"DraftToken": {draft.Token}}); w.Code != 409 {
-		t.Fatal("expired draft published")
-	}
-	createDraft(t, s, handler, "", inputForm())
-	var count int64
-	s.db.Model(&InvitationDraft{}).Where("token = ?", draft.Token).Count(&count)
-	if count != 0 {
-		t.Fatal("expired draft not cleaned up")
+	if original.Description != first.Description || original.Markdown != first.Markdown {
+		t.Fatal("resubmission changed original event")
 	}
 }
 
@@ -256,10 +217,10 @@ func TestLegacyEventsAndFormValidation(t *testing.T) {
 	s, handler := testApp(t, nil)
 	for _, path := range []string{"/", "/?host=nice"} {
 		page := request(t, handler, "GET", path, nil)
-		if page.Code != 200 || !strings.Contains(page.Body.String(), "Preview invitation") || strings.Contains(page.Body.String(), "Generate invitation &amp; preview") {
+		if page.Code != 200 || !strings.Contains(page.Body.String(), "Create invitation") || strings.Contains(page.Body.String(), "Create without AI") {
 			t.Fatalf("manual creation page: %s", page.Body.String())
 		}
-		if strings.Contains(path, "nice") && !strings.Contains(page.Body.String(), "/event/preview?host=nice") {
+		if strings.Contains(path, "nice") && !strings.Contains(page.Body.String(), `/event?host=nice`) {
 			t.Fatal("Nicevites override lost on creation form")
 		}
 	}
@@ -267,55 +228,36 @@ func TestLegacyEventsAndFormValidation(t *testing.T) {
 	form.Set("Markdown", "injected")
 	form.Set("Voice", "nice")
 	form.Set("ID", "123")
-	w := request(t, handler, "POST", "/event", form)
-	if w.Code != 302 {
-		t.Fatal("legacy creation failed")
+	event := createEvent(t, s, handler, "", form)
+	if event.Markdown != form.Get("Description") || event.Voice != "aggro" || event.ID == 123 {
+		t.Fatal("form bound server-controlled fields")
 	}
-	var event Event
-	s.db.First(&event)
-	if event.Markdown != "" || event.Voice != "" || event.ID == 123 {
-		t.Fatal("legacy form bound server-controlled fields")
+	old := Event{Description: "Old event! Bring snacks.", TimeZone: "America/Los_Angeles"}
+	if err := s.db.Create(&old).Error; err != nil {
+		t.Fatal(err)
 	}
-	if w := request(t, handler, "GET", "/event/1", nil); w.Code != 200 || !strings.Contains(w.Body.String(), "Dinner at 123 Main St") {
+	if w := request(t, handler, "GET", "/event/2", nil); w.Code != 200 || !strings.Contains(w.Body.String(), "Old event!") || !strings.Contains(w.Body.String(), "Bring snacks.") {
 		t.Fatal("legacy display failed")
 	}
-	for _, path := range []string{"/event/999/image", "/event/999/invitation.md", "/event/1/image", "/draft/missing"} {
+	for _, path := range []string{"/event/999/image", "/event/1/invitation.md", "/event/1/image", "/draft/missing", "/draft/missing/image"} {
 		if w := request(t, handler, "GET", path, nil); w.Code != 404 {
 			t.Fatalf("expected 404 at %s, got %d", path, w.Code)
 		}
 	}
+	if w := request(t, handler, "POST", "/event/preview", form); w.Code != 404 {
+		t.Fatal("preview endpoint should be removed")
+	}
 	for _, invalid := range []string{"", "Invalid/Timezone"} {
 		form.Set("TimeZone", invalid)
-		w := request(t, handler, "POST", "/event/preview", form)
+		w := request(t, handler, "POST", "/event", form)
 		if w.Code != 400 || !strings.Contains(w.Body.String(), "Dinner at 123 Main St") {
 			t.Fatal("invalid input not retained")
 		}
 	}
 	form.Set("TimeZone", "America/Los_Angeles")
 	form.Set("Description", strings.Repeat("x", 12001))
-	if w := request(t, handler, "POST", "/event/preview", form); w.Code != 400 {
+	if w := request(t, handler, "POST", "/event", form); w.Code != 400 {
 		t.Fatal("oversized input accepted")
-	}
-}
-
-func TestOmitArtwork(t *testing.T) {
-	ai := &fakeGenerator{}
-	s, handler := testApp(t, ai)
-	draft := createDraft(t, s, handler, "", inputForm())
-	page := request(t, handler, "GET", "/", nil)
-	if !strings.Contains(page.Body.String(), "Generate invitation &amp; preview") {
-		t.Fatal("AI creation button missing")
-	}
-	preview := request(t, handler, "GET", "/draft/"+draft.Token, nil)
-	if !strings.Contains(preview.Body.String(), `name="IncludeImage"`) {
-		t.Fatal("preview should offer publication without artwork")
-	}
-	published := request(t, handler, "POST", "/event", url.Values{"DraftToken": {draft.Token}})
-	if published.Code != 303 {
-		t.Fatal("could not publish without artwork")
-	}
-	if image := request(t, handler, "GET", "/event/1/image", nil); image.Code != 404 {
-		t.Fatal("excluded artwork published")
 	}
 }
 

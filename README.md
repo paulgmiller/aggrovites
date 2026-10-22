@@ -16,8 +16,8 @@ by subsequent database deployments. Keep passwords out of Git. The application
 needs no certificate mounts; `sslmode=require` encrypts the connection but does
 not verify the database server's identity.
 
-GORM creates or updates the `events`, `rsvps`, and `invitation_drafts` tables on
-startup. Existing events keep their original plain-text display.
+GORM creates or updates the `events` and `rsvps` tables on startup. Existing
+events keep their original plain-text display.
 
 ## AI invitations
 
@@ -35,10 +35,11 @@ the Images API (`1024x1024`, low quality); the app stores a 512-pixel JPEG.
 Your OpenAI project must have access to the configured models. API keys stay on
 the server and are never sent to the browser.
 
-Hosts enter their description, date, and time, then review the formatted
-invitation before publishing. To make changes, use the browser back button,
-edit the details, and create a new preview. Aggrovites generates aggressive,
-profane invitations; Nicevites generates extremely polite ones. The creation
+Hosts enter their description, date, and time, then submit to create the event
+and view the formatted invitation. Share the event URL when happy with it. To
+make changes, use the browser back button, edit the details, and create another
+event. Events become accessible immediately; there is no draft or publish step.
+Aggrovites generates aggressive, profane invitations; Nicevites generates extremely polite ones. The creation
 site's voice is retained even if guests open the event on the other hostname.
 For local Nicevites testing, open `http://localhost:9000/?host=nice`.
 
@@ -47,15 +48,12 @@ Google Maps directions link; no Google API key or geocoding service is required.
 Guests see the formatted invitation, illustration, and RSVP form. Markdown is
 stored internally for rendering; no editor or download is exposed.
 
-Drafts and artwork live in the database, so no writable filesystem or external
-image hosting is needed. Draft URLs are private bearer links: anyone with the
-link can review or publish the draft until it expires after 24 hours. Expired
-drafts are removed when another preview is created. Each creation submission
-generates a new preview; viewing and publishing do not make API calls or change
-the reviewed content. Repeated publication returns the same event. Generation
-failures preserve the source for publication, or hosts can go back and try again.
-Artwork is optional when publishing.
-Without `OPENAI_API_KEY`, hosts can still preview and publish their own Markdown.
+Events and artwork live in the database, so no writable filesystem or external
+image hosting is needed. Generation runs only when creating an event; refreshing
+or sharing its page does not make API calls. Each form submission creates a new
+event. If text generation fails, the form retains the entered details for retry
+or creation without AI. If artwork fails, the event is created without it.
+Without `OPENAI_API_KEY`, hosts can still create invitations from their own text.
 
 `deploy.yaml` optionally reads `OPENAI_API_KEY` from the `openai-api` Kubernetes
 Secret in namespace `aggrovites`. Provision that Secret with your normal secret
