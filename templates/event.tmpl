@@ -92,7 +92,6 @@
             <h1>{{.event.Title}}</h1>
             {{if .event.Body}}<p>{{.event.Body}}</p>{{end}}
             {{end}}
-            <p><a href="{{.markdownURL}}" download>Download invitation as Markdown</a></p>
             <p><script>document.write(new Date("{{.event.PrettyStart}}").toLocaleDateString('en-US', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit'}));</script></p>
             <form action="{{.rsvpAction}}" method="post" class="form">
                 <h3>{{ .rsvpHeader }}</h3>

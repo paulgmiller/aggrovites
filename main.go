@@ -72,12 +72,10 @@ func newRouter(s *server) *gin.Engine {
 	router.GET("/", s.newInvitation)
 	router.POST("/event/preview", s.previewInvitation)
 	router.GET("/draft/:token", s.getDraft)
-	router.POST("/draft/:token", s.updateDraft)
 	router.GET("/draft/:token/image", s.draftImage)
 	router.POST("/event", s.postEvent)
 	router.GET("/event/:id", s.getEvent)
 	router.GET("/event/:id/image", s.eventImage)
-	router.GET("/event/:id/invitation.md", s.downloadMarkdown)
 
 	router.POST("/rsvp", s.rsvp)
 
@@ -170,7 +168,6 @@ func (s *server) getEvent(c *gin.Context) {
 
 	htmlObj["ogDescription"] = event.PlainDescription()
 	htmlObj["rsvpAction"] = sitePath(c, "/rsvp")
-	htmlObj["markdownURL"] = sitePath(c, fmt.Sprintf("/event/%d/invitation.md", event.ID))
 	if event.Markdown != "" {
 		htmlObj["ogTitle"] = event.Title()
 		htmlObj["title"] = event.Title()

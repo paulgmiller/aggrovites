@@ -101,7 +101,7 @@ func createDraft(t *testing.T, s *server, handler http.Handler, suffix string, v
 	return draft
 }
 
-func TestInvitationPreviewPublishAndDownload(t *testing.T) {
+func TestInvitationPreviewAndPublish(t *testing.T) {
 	ai := &fakeGenerator{}
 	s, handler := testApp(t, ai)
 	draft := createDraft(t, s, handler, "?host=nice", inputForm())
@@ -124,18 +124,11 @@ func TestInvitationPreviewPublishAndDownload(t *testing.T) {
 	if w := request(t, handler, "GET", "/draft/"+draft.Token+"/image", nil); w.Code != 200 {
 		t.Fatal("draft artwork unavailable")
 	}
-	edited := strings.Replace(draft.Markdown, "snacks", "dessert", 1)
-	edit := url.Values{"Markdown": {edited}, "Action": {"preview"}}
-	if w := request(t, handler, "POST", "/draft/"+draft.Token+"?host=nice", edit); w.Code != 303 {
-		t.Fatalf("edit: %d", w.Code)
+	if strings.Contains(page.Body.String(), "<textarea") || strings.Contains(page.Body.String(), "Update preview") || !strings.Contains(page.Body.String(), "back button") {
+		t.Fatal("preview should only offer review and publication")
 	}
-	if err := s.db.First(&draft, "token = ?", draft.Token).Error; err != nil {
-		t.Fatal(err)
-	}
-	if draft.Markdown != edited {
-		t.Fatal("Markdown edit not saved")
-	}
-	form := url.Values{"DraftToken": {draft.Token}, "Markdown": {edited}, "IncludeImage": {"true"}}
+	// Publication uses the stored preview, ignoring client-supplied Markdown.
+	form := url.Values{"DraftToken": {draft.Token}, "Markdown": {"# Unreviewed replacement"}, "IncludeImage": {"true"}}
 	first := request(t, handler, "POST", "/event?host=nice", form)
 	second := request(t, handler, "POST", "/event?host=nice", form)
 	if first.Code != 303 || second.Header().Get("Location") != first.Header().Get("Location") {
@@ -150,28 +143,25 @@ func TestInvitationPreviewPublishAndDownload(t *testing.T) {
 	if err := s.db.First(&event).Error; err != nil {
 		t.Fatal(err)
 	}
-	if event.Markdown != edited || event.Voice != "nice" || len(event.Image) == 0 {
+	if event.Markdown != draft.Markdown || event.Voice != "nice" || len(event.Image) == 0 {
 		t.Fatalf("wrong saved event: %+v", event)
 	}
 	// A different hostname does not regenerate or rewrite the reviewed text.
 	guest := request(t, handler, "GET", "/event/1", nil)
-	if strings.Count(guest.Body.String(), "<h1>") != 1 || !strings.Contains(guest.Body.String(), "<strong>dessert</strong>") || !strings.Contains(guest.Body.String(), `/event/1/image`) {
+	if strings.Count(guest.Body.String(), "<h1>") != 1 || !strings.Contains(guest.Body.String(), "<strong>snacks</strong>") || !strings.Contains(guest.Body.String(), `/event/1/image`) {
 		t.Fatalf("guest page: %s", guest.Body.String())
 	}
 	if w := request(t, handler, "GET", "/event/1/image", nil); w.Code != 200 || w.Header().Get("Content-Type") != "image/jpeg" {
 		t.Fatal("event artwork unavailable")
 	}
-	download := request(t, handler, "GET", "/event/1/invitation.md", nil)
-	for _, want := range []string{"# Come to dinner!", "**dessert**", "[RSVP](http://example.com/event/1)", "![Event illustration](http://example.com/event/1/image)", directionsURL(event.Location)} {
-		if !strings.Contains(download.Body.String(), want) {
-			t.Fatalf("download missing %q: %s", want, download.Body.String())
-		}
+	if strings.Contains(guest.Body.String(), "Download invitation") {
+		t.Fatal("guest page should not expose a Markdown export")
 	}
-	if !strings.HasPrefix(download.Header().Get("Content-Type"), "text/markdown") || !strings.Contains(download.Header().Get("Content-Disposition"), ".md") {
-		t.Fatal("wrong download headers")
+	if download := request(t, handler, "GET", "/event/1/invitation.md", nil); download.Code != 404 {
+		t.Fatal("Markdown download endpoint should be removed")
 	}
 	if ai.textCalls != 1 || ai.imageCalls != 1 {
-		t.Fatal("view, edit, publish, or download called AI")
+		t.Fatal("view or publication called AI")
 	}
 	if !strings.Contains(event.GoogleCalendarLink(), "location=") || strings.Contains(event.PlainDescription(), "**") {
 		t.Fatal("calendar not using plain text/location")
@@ -214,7 +204,7 @@ func TestGenerationFailuresAndManualCreation(t *testing.T) {
 			if mode == "image failure" && !strings.Contains(draft.Markdown, "# Come to dinner!") {
 				t.Fatal("text lost on image failure")
 			}
-			published := request(t, handler, "POST", "/event", url.Values{"DraftToken": {draft.Token}, "Markdown": {draft.Markdown}})
+			published := request(t, handler, "POST", "/event", url.Values{"DraftToken": {draft.Token}})
 			if published.Code != 303 {
 				t.Fatal("could not publish without artwork")
 			}
@@ -225,32 +215,25 @@ func TestGenerationFailuresAndManualCreation(t *testing.T) {
 	}
 }
 
-func TestDraftExpiryRegenerationAndGenerationLease(t *testing.T) {
+func TestNewPreviewAndDraftExpiry(t *testing.T) {
 	ai := &fakeGenerator{}
 	s, handler := testApp(t, ai)
 	draft := createDraft(t, s, handler, "?host=nice", inputForm())
 	form := inputForm()
-	form.Set("Action", "regenerate")
-	form.Set("Markdown", "# Edited draft")
 	form.Set("Description", "New description at 123 Main St, Seattle, WA")
-	w := request(t, handler, "POST", "/draft/"+draft.Token, form)
-	if w.Code != 303 || ai.textCalls != 2 || ai.last.Description != form.Get("Description") || ai.last.Voice != "nice" {
-		t.Fatal("regenerate did not preserve source/voice")
+	revised := createDraft(t, s, handler, "?host=nice", form)
+	if revised.Token == draft.Token || ai.textCalls != 2 || ai.last.Description != form.Get("Description") || revised.Voice != "nice" {
+		t.Fatal("resubmitting the creation form should generate a new preview")
 	}
-	ai.textErr = errors.New("provider unavailable")
-	request(t, handler, "POST", "/draft/"+draft.Token, form)
-	if err := s.db.First(&draft, "token = ?", draft.Token).Error; err != nil {
+	if update := request(t, handler, "POST", "/draft/"+draft.Token, url.Values{"Markdown": {"# Changed"}}); update.Code != 404 {
+		t.Fatal("draft update endpoint should be removed")
+	}
+	var original InvitationDraft
+	if err := s.db.First(&original, "token = ?", draft.Token).Error; err != nil {
 		t.Fatal(err)
 	}
-	if draft.Markdown != "# Edited draft" || draft.Notice == "" {
-		t.Fatal("regeneration failure lost edits")
-	}
-	s.db.Model(&draft).Update("generating_until", time.Now().Add(time.Minute))
-	if w := request(t, handler, "POST", "/draft/"+draft.Token, form); w.Code != 409 {
-		t.Fatal("concurrent regeneration allowed")
-	}
-	if w := request(t, handler, "POST", "/event", url.Values{"DraftToken": {draft.Token}, "Markdown": {draft.Markdown}}); w.Code != 409 {
-		t.Fatal("published while generating")
+	if original.Description != draft.Description || original.Markdown != draft.Markdown {
+		t.Fatal("creating another preview changed the original")
 	}
 	s.db.Model(&draft).Update("expires_at", time.Now().Add(-time.Minute))
 	for _, path := range []string{"/draft/" + draft.Token, "/draft/" + draft.Token + "/image"} {
@@ -258,7 +241,7 @@ func TestDraftExpiryRegenerationAndGenerationLease(t *testing.T) {
 			t.Fatalf("expired draft accessible at %s", path)
 		}
 	}
-	if w := request(t, handler, "POST", "/event", url.Values{"DraftToken": {draft.Token}, "Markdown": {draft.Markdown}}); w.Code != 409 {
+	if w := request(t, handler, "POST", "/event", url.Values{"DraftToken": {draft.Token}}); w.Code != 409 {
 		t.Fatal("expired draft published")
 	}
 	createDraft(t, s, handler, "", inputForm())
@@ -319,27 +302,20 @@ func TestOmitArtwork(t *testing.T) {
 	ai := &fakeGenerator{}
 	s, handler := testApp(t, ai)
 	draft := createDraft(t, s, handler, "", inputForm())
-	if !draft.IncludeImage {
-		t.Fatal("new artwork not selected")
-	}
 	page := request(t, handler, "GET", "/", nil)
 	if !strings.Contains(page.Body.String(), "Generate invitation &amp; preview") {
 		t.Fatal("AI creation button missing")
 	}
-	request(t, handler, "POST", "/draft/"+draft.Token, url.Values{"Markdown": {draft.Markdown}})
 	preview := request(t, handler, "GET", "/draft/"+draft.Token, nil)
-	if strings.Contains(preview.Body.String(), `<img class="event-artwork"`) {
-		t.Fatal("excluded artwork shown in guest preview")
+	if !strings.Contains(preview.Body.String(), `name="IncludeImage"`) {
+		t.Fatal("preview should offer publication without artwork")
 	}
-	published := request(t, handler, "POST", "/event", url.Values{"DraftToken": {draft.Token}, "Markdown": {draft.Markdown}})
+	published := request(t, handler, "POST", "/event", url.Values{"DraftToken": {draft.Token}})
 	if published.Code != 303 {
 		t.Fatal("could not publish without artwork")
 	}
 	if image := request(t, handler, "GET", "/event/1/image", nil); image.Code != 404 {
 		t.Fatal("excluded artwork published")
-	}
-	if download := request(t, handler, "GET", "/event/1/invitation.md", nil); strings.Contains(download.Body.String(), "![Event illustration]") {
-		t.Fatal("download contains excluded artwork")
 	}
 }
 

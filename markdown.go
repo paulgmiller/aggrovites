@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"html/template"
 	"net/url"
 	"strings"
@@ -25,8 +24,8 @@ func renderMarkdown(source string) template.HTML {
 	if err := markdown.Convert([]byte(source), &buf); err != nil {
 		return template.HTML(template.HTMLEscapeString(source))
 	}
-	// This is the only conversion to trusted HTML. Model output and host edits
-	// both go through the same Markdown renderer and sanitizer.
+	// This is the only conversion to trusted HTML. Generated and manually
+	// written invitations both go through the same renderer and sanitizer.
 	return template.HTML(invitationPolicy.SanitizeBytes(buf.Bytes()))
 }
 
@@ -83,16 +82,4 @@ func (e Event) PlainDescription() string {
 		return plainMarkdown(e.Markdown)
 	}
 	return e.Description
-}
-
-func (e Event) ExportMarkdown(baseURL string) string {
-	source := e.Markdown
-	if source == "" {
-		// Escape legacy plain text so raw HTML cannot become active on export.
-		source = template.HTMLEscapeString(e.Description)
-	}
-	if len(e.Image) != 0 {
-		source = fmt.Sprintf("![Event illustration](%s/event/%d/image)\n\n%s", baseURL, e.ID, source)
-	}
-	return strings.TrimSpace(source) + fmt.Sprintf("\n\n**When:** %s (%s)\n\n[RSVP](%s/event/%d)\n", e.PrettyStart(), e.TimeZone, baseURL, e.ID)
 }

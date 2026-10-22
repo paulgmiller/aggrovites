@@ -11,42 +11,23 @@
 <body>
 <main class="container invitation-editor">
     <h1>Review your invitation</h1>
-    <p>Edit the Markdown, update the preview, then publish when you're happy. Guests will see the formatted invitation.</p>
+    <p>Happy with it? Publish below. To make changes, use your browser's back button and edit the details.</p>
     {{if .draft.Notice}}<p class="alert alert-warning" role="alert">{{.draft.Notice}}</p>{{end}}
-    <form action="{{.draftAction}}" method="post" data-progress="Saving your invitation. Generating new artwork may take a couple of minutes…">
-        <input type="hidden" name="DraftToken" value="{{.draft.Token}}">
-        <input type="hidden" name="Start" value="{{.draft.Start.Format "2006-01-02T15:04"}}">
-        <input type="hidden" name="TimeZone" value="{{.draft.TimeZone}}">
-        <label for="Markdown" class="form-label">Invitation Markdown</label>
-        <textarea id="Markdown" name="Markdown" rows="16" class="form-control font-monospace" maxlength="24000" required>{{.draft.Markdown}}</textarea>
-        {{if .draft.Image}}
-        <div class="form-check my-3">
-            <input type="checkbox" id="IncludeImage" name="IncludeImage" value="true" class="form-check-input" {{if .draft.IncludeImage}}checked{{end}}>
-            <label for="IncludeImage" class="form-check-label">Include illustration</label>
-        </div>
-        {{end}}
-        <div class="my-3 d-flex gap-2 flex-wrap">
-            <button type="submit" name="Action" value="preview" class="btn btn-outline-primary">Update preview</button>
-            <button type="submit" name="Action" value="publish" formaction="{{.publishAction}}" class="btn btn-success">Publish invitation</button>
-        </div>
-        <details class="my-3">
-            <summary>Original description &amp; regeneration</summary>
-            <label for="Description" class="form-label mt-3">Description used to generate a new invitation</label>
-            <textarea id="Description" name="Description" rows="5" maxlength="12000" required class="form-control">{{.draft.Description}}</textarea>
-            <p class="mt-2">{{.draft.Start.Format "Mon, Jan 2, 2006 at 3:04 PM"}} ({{.draft.TimeZone}})</p>
-            {{if .aiEnabled}}
-            <p>Regenerating replaces the Markdown and illustration using this description.</p>
-            <button type="submit" name="Action" value="regenerate" class="btn btn-outline-secondary">Regenerate invitation &amp; artwork</button>
-            {{end}}
-        </details>
-        <p data-progress-message role="status" hidden></p>
-    </form>
-    <hr>
-    <h2>Guest preview</h2>
-    {{if and .draft.Image .draft.IncludeImage}}<img class="event-artwork" src="{{.imageURL}}" alt="Event illustration" width="512" height="512">{{end}}
+    {{if .draft.Image}}<img class="event-artwork" src="{{.imageURL}}" alt="Event illustration" width="512" height="512">{{end}}
     <article class="invitation-content">{{.preview}}</article>
     <p>{{.draft.Start.Format "Mon, Jan 2, 2006 at 3:04 PM"}} ({{.draft.TimeZone}})</p>
-    <p>Your RSVP form and Markdown download will appear on the published page. This private draft expires after 24 hours.</p>
+    <form action="{{.publishAction}}" method="post" data-progress="Publishing your invitation…">
+        <input type="hidden" name="DraftToken" value="{{.draft.Token}}">
+        {{if .draft.Image}}
+        <div class="form-check my-3">
+            <input type="checkbox" id="IncludeImage" name="IncludeImage" value="true" class="form-check-input" checked>
+            <label for="IncludeImage" class="form-check-label">Publish with illustration</label>
+        </div>
+        {{end}}
+        <button type="submit" class="btn btn-success">Publish invitation</button>
+        <p data-progress-message role="status" class="mt-3" hidden></p>
+    </form>
+    <p class="mt-3">Your RSVP form will appear on the published page. This private preview expires after 24 hours.</p>
 </main>
 <script src="/assets/invitation.js" defer></script>
 </body>

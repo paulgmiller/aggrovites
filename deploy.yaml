@@ -26,9 +26,8 @@ spec:
         - name: OPENAI_API_KEY
           valueFrom:
             secretKeyRef:
-              name: openai-api
+              name: ai
               key: OPENAI_API_KEY
-              optional: true
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:

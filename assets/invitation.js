@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
             message.textContent = form.dataset.progress;
             message.hidden = false;
             // Wait for form serialization so the clicked button's name/value
-            // (Generate or Action) is included in the request.
+            // (Generate) is included in the request.
             setTimeout(() => form.querySelectorAll('button').forEach(button => { button.disabled = true; }), 0);
         });
     });

@@ -5,4 +5,3 @@
 .invitation-content pre { overflow-x: auto; }
 .invitation-content table { display: block; overflow-x: auto; }
 .section-primary, .section-secondary { min-width: 0; padding: 12px; }
-textarea.font-monospace { font-size: 0.9rem; }
